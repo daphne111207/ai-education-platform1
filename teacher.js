@@ -1,5 +1,5 @@
 /* =========================================================
-   教师端（静态展示版）
+   教师端（静态展示版 · 合并版）
    纯前端：数据来自 data.js，增删改通过 localStorage 持久化，
    刷新后仍保留，方便点着玩。无后端请求。
    ========================================================= */
@@ -18,9 +18,17 @@ function _tAnns() {
 }
 function _tSaveAnns(list) { localStorage.setItem("static_t_anns", JSON.stringify(list)); }
 
-// ---- 通用小组件 ----
-function tStat(ic, num, lbl) {
-  return `<div class="stat"><div class="ic" style="background:linear-gradient(135deg,var(--primary-soft),var(--ai-soft))">${ic}</div><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`;
+// ---- 学情统计卡（图标 + 数字 + 说明）----
+function tStat(icName, num, lbl) {
+  const card = el("div", "stat");
+  const ic = el("div", "ic");
+  ic.style.background = "var(--primary-soft)";
+  ic.style.color = "var(--primary-deep)";
+  ic.innerHTML = icon(icName, 22);
+  card.appendChild(ic);
+  card.appendChild(el("div", "num", num));
+  card.appendChild(el("div", "lbl", lbl));
+  return card;
 }
 
 /* ---------------- 学情概览 ---------------- */
@@ -31,28 +39,36 @@ function tDashboard(v) {
   v.appendChild(el("p", "h-sub", `你好，${currentUser.name}，这是你的教学班级概览（示例数据）`));
 
   const stats = el("div", "stat-grid");
-  stats.innerHTML =
-    tStat("📚", cs.length, "我的课程") +
-    tStat("👥", ROSTER.length, "学生数") +
-    tStat("📝", cs.reduce((s, c) => s + (c.hw || []).length, 0), "作业总数") +
-    tStat("📢", anns.length, "公告总数");
+  stats.appendChild(tStat("book-open", cs.length, "我的课程"));
+  stats.appendChild(tStat("users", ROSTER.length, "学生数"));
+  stats.appendChild(tStat("clipboard", cs.reduce((s, c) => s + (c.hw || []).length, 0), "作业总数"));
+  stats.appendChild(tStat("bell", anns.length, "公告总数"));
   v.appendChild(stats);
 
   v.appendChild(el("div", "h-title2", "各课程学情"));
   cs.forEach((c) => {
     const t = c.tStats || { attendance: 0, submitRate: 0, active: 0, students: 0 };
     const card = el("div", "tcard");
-    card.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <h3 style="margin:0">${c.cover} ${esc(c.title)}</h3>
-        <button class="btn sm" onclick="tCourseDetail(document.getElementById('view'), ${c.id})">管理课程 →</button>
-      </div>
-      <div class="muted2" style="margin-top:4px">${esc(c.category)} · ${esc(c.teacher)} · 学生 ${t.students} 人 · 章节 ${(c.sections || []).length} · 作业 ${(c.hw || []).length}</div>
-      <div class="stat-grid" style="margin-top:12px">
-        ${tStat("✅", t.attendance + "%", "出勤率")}
-        ${tStat("📤", t.submitRate + "%", "作业提交率")}
-        ${tStat("🔥", t.active, "活跃学生")}
-      </div>`;
+    const head = el("div");
+    head.style.cssText = "display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px";
+    const h3 = el("h3", null, "");
+    h3.style.cssText = "margin:0;display:flex;align-items:center;gap:10px";
+    const cv = el("span", "cover-min", c.coverText);
+    cv.style.cssText = "width:30px;height:30px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;background:" + c.coverColor;
+    h3.appendChild(cv);
+    h3.appendChild(el("span", null, c.title));
+    const go = el("button", "btn sm", "管理课程 →");
+    go.onclick = () => tCourseDetail(document.getElementById("view"), c.id);
+    head.appendChild(h3);
+    head.appendChild(go);
+    card.appendChild(head);
+    card.appendChild(el("div", "muted2", c.category + " · " + c.teacher + " · 学生 " + t.students + " 人 · 章节 " + (c.sections || []).length + " · 作业 " + (c.hw || []).length));
+    const sg = el("div", "stat-grid");
+    sg.style.marginTop = "12px";
+    sg.appendChild(tStat("check-circle", t.attendance + "%", "出勤率"));
+    sg.appendChild(tStat("send", t.submitRate + "%", "作业提交率"));
+    sg.appendChild(tStat("sparkles", t.active, "活跃学生"));
+    card.appendChild(sg);
     v.appendChild(card);
   });
 }
@@ -66,7 +82,12 @@ function tCourses(v) {
   const grid = el("div", "tgrid");
   cs.forEach((c) => {
     const card = el("div", "tcourse");
-    card.innerHTML = `<div class="cover">${c.cover}</div><div class="tt">${esc(c.title)}</div><div class="tm">${esc(c.category)} · ${esc(c.teacher)}</div><div class="tm">章节 ${(c.sections || []).length} 个 · 作业 ${(c.hw || []).length} 份</div>`;
+    const cover = el("div", "cover", c.coverText);
+    cover.style.cssText = "width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:#fff;background:" + c.coverColor;
+    card.appendChild(cover);
+    card.appendChild(el("div", "tt", c.title));
+    card.appendChild(el("div", "tm", c.category + " · " + c.teacher));
+    card.appendChild(el("div", "tm", "章节 " + (c.sections || []).length + " 个 · 作业 " + (c.hw || []).length + " 份"));
     card.onclick = () => tCourseDetail(v, c.id);
     grid.appendChild(card);
   });
@@ -79,7 +100,7 @@ function tCourses(v) {
     if (!t) return;
     const cs2 = _tData();
     cs2.push({
-      id: Date.now(), title: t, teacher: currentUser.name, cover: "📘", category: "通识课",
+      id: Date.now(), title: t, teacher: currentUser.name + " · " + (currentUser.major || "学院"), coverColor: "#8AA9F0", coverText: "课", category: "通识课",
       desc: "", progress: 0, sections: [], discussions: [], homeworks: [], hw: [],
       tStats: { attendance: 0, submitRate: 0, active: 0, students: 0 },
       analytics: { studyHours: 0, videoProgress: 0, avgScore: 0, weekly: [] },
@@ -97,9 +118,10 @@ function tCourseDetail(v, cid) {
   if (!c) return;
   activeNav = "t-courses";
   renderNav();
+  hideCrumb();
   v.innerHTML = "";
-  v.appendChild(el("div", "h-title", `${c.cover} ${c.title}`));
-  v.appendChild(el("p", "h-sub", `${esc(c.category)} · ${esc(c.teacher)} · 章节 ${(c.sections || []).length} 个`));
+  v.appendChild(el("div", "h-title", c.title));
+  v.appendChild(el("p", "h-sub", c.category + " · " + c.teacher + " · 章节 " + (c.sections || []).length + " 个"));
 
   const back = el("button", "btn sm", "← 返回课程列表");
   back.onclick = () => tCourses(v);
@@ -178,9 +200,10 @@ function tGrade(v, cid, htitle) {
   const c = cs.find((x) => x.id === cid);
   const h = (c.hw || []).find((x) => x.title === htitle);
   if (!c || !h) return;
+  hideCrumb();
   v.innerHTML = "";
   v.appendChild(el("div", "h-title", "批改作业"));
-  v.appendChild(el("p", "h-sub", `${c.title} · ${htitle}`));
+  v.appendChild(el("p", "h-sub", c.title + " · " + htitle));
   const back = el("button", "btn sm", "← 返回课程");
   back.onclick = () => tCourseDetail(v, cid);
   v.appendChild(back);
