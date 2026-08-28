@@ -1,0 +1,28 @@
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ===== 环境变量与密钥 =====
+.env
+.env.local
+
+# ===== 数据库（部署时由 seed 自动重建）=====
+*.db
+backend/app.db
+
+# ===== 日志 =====
+backend/server.log
+*.log
+
+# ===== 演示视频等二进制大文件（seed 引用 /files/*.mp4，本地可放）=====
+backend/uploads/*.mp4
+
+# ===== 静态导出（自带 .git，单独管理）=====
+gh-pages/
+
+# ===== 系统 =====
+.DS_Store
+Thumbs.db

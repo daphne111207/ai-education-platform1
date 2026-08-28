@@ -18,7 +18,7 @@ function doLogin() {
     $("#li-err").textContent = "用户名或密码错误，或该账号未下发";
     return;
   }
-  currentUser = { username: user.username, name: user.name, avatar: user.avatar };
+  currentUser = { username: user.username, name: user.name, avatar: user.avatar, role: user.role || "student" };
   localStorage.setItem("static_user", JSON.stringify(currentUser));
   showApp();
 }
@@ -34,8 +34,10 @@ function showApp() {
   $("#login").style.display = "none";
   $("#app").style.display = "flex";
   $("#topAvatar").textContent = currentUser.avatar;
+  const isT = currentUser.role === "teacher";
+  $("#aiCard").style.display = isT ? "none" : "block";
   renderNav();
-  navigate("home");
+  navigate(isT ? "t-dashboard" : "home");
 }
 
 /* ---------------- 导航 ---------------- */
@@ -50,7 +52,15 @@ let activeNav = "home";
 function renderNav() {
   const nav = $("#nav");
   nav.innerHTML = "";
-  NAV.forEach((n) => {
+  const isT = currentUser.role === "teacher";
+  $("#sidebarSub").textContent = isT ? "教师端" : "学生端";
+  const ITEMS = isT ? [
+    { key: "t-dashboard", ic: "📈", label: "学情概览" },
+    { key: "t-courses", ic: "📚", label: "我的课程" },
+    { key: "t-announce", ic: "📢", label: "公告管理" },
+    { key: "t-students", ic: "👥", label: "学生名单" },
+  ] : NAV;
+  ITEMS.forEach((n) => {
     const item = el("div", "nav-item" + (n.key === activeNav ? " active" : ""));
     item.innerHTML = `<span class="ic">${n.ic}</span><span>${n.label}</span>`;
     item.onclick = () => navigate(n.key);
@@ -67,6 +77,10 @@ function navigate(key, courseId) {
   if (key === "aichat") return renderAIChat(v);
   if (key === "dashboard") return renderDashboard(v);
   if (key === "signin") return renderSignin(v);
+  if (key === "t-dashboard") return tDashboard(v);
+  if (key === "t-courses") return tCourses(v);
+  if (key === "t-announce") return tAnnouncements(v);
+  if (key === "t-students") return tRoster(v);
 }
 
 /* ---------------- 课程中心 ---------------- */
@@ -93,6 +107,22 @@ function renderHome(v) {
     grid.appendChild(card);
   });
   v.appendChild(grid);
+
+  // 通知公告（本人课程 + 全校）
+  const anns = ANNOUNCEMENTS.filter((a) => !a.course_id || COURSES.some((c) => c.id === a.course_id)).slice(0, 3);
+  if (anns.length) {
+    const box = el("div", "card");
+    box.style.cssText = "margin-top:22px;padding:18px";
+    box.appendChild(el("div", "h-title2", "📢 通知公告"));
+    const list = el("div", "ann-list");
+    anns.forEach((a) => {
+      const item = el("div", "ann-item");
+      item.innerHTML = `<div class="ann-title">${esc(a.title)}<span class="ann-course">${esc(a.course_title || "全校")}</span></div><div class="ann-content">${esc(a.content)}</div><div class="muted2" style="margin-top:6px">${esc(a.created_at)}</div>`;
+      list.appendChild(item);
+    });
+    box.appendChild(list);
+    v.appendChild(box);
+  }
 }
 
 function openCourse(id) {

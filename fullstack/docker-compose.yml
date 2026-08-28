@@ -1,0 +1,37 @@
+# 研究生通识课 AI 教育平台 —— 一键部署编排
+# 用法：在 site/ 目录下执行  docker compose up -d --build
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    # SQLITE_PATH 指向持久卷；JWT_SECRET 生产务必改成强随机值
+    environment:
+      SQLITE_PATH: /app/data/app.db
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+    # OpenMAIC 访问码等敏感配置从宿主机 .env 读取（不进镜像）
+    env_file:
+      - .env
+    volumes:
+      - app-data:/app/data
+      # 把宿主 .env 挂进容器，避免重建后丢失配置（只读）
+      - ./.env:/app/backend/.env:ro
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+
+volumes:
+  app-data:
+  caddy-data:
+  caddy-config:

@@ -457,14 +457,12 @@ option{padding:6px}
   .login-left{padding:34px 28px}
 }
 
-/* ===================== 公告（学生端通知区） ===================== */
+/* ===================== 公告 ===================== */
 .ann-list{display:flex;flex-direction:column;gap:10px;margin-top:8px}
 .ann-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
 .ann-title{font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:10px}
 .ann-course{font-size:11px;color:#fff;background:var(--primary);border-radius:20px;padding:2px 10px;white-space:nowrap}
 .ann-content{color:var(--text-2);font-size:13px;margin-top:6px;line-height:1.6}
-.h-title2{font-size:15px;font-weight:800;margin:7px 0;font-family:var(--font-serif)}
-.muted2{color:var(--text-2);font-size:12px}
 
 /* ===================== 教师端 ===================== */
 .tcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:14px}
@@ -484,6 +482,10 @@ option{padding:6px}
 .tbl th,.tbl td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;font-size:13px}
 .tbl th{background:var(--primary-soft);color:var(--text)}
 .tbl tr:last-child td{border-bottom:none}
+.muted2{color:var(--text-2);font-size:12px}
 .tag-ok{color:#1a7f37;font-weight:600}
 .tag-no{color:#b42318}
+.upload-row{display:flex;gap:10px;align-items:center;margin:8px 0}
 .btn.sm{padding:6px 12px;font-size:13px}
+.right{float:right}
+
