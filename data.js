@@ -2,14 +2,13 @@
    内嵌数据（静态展示版 · 无后端）
    说明：本文件把"后端接口返回的数据"直接写死在前端，
    因此部署到 GitHub Pages 后无需任何服务器即可运行。
-   如需修改课程/资料/公告/名单，改这里即可。
+   如需修改课程/资料，改这里即可。
    ========================================================= */
 
-// 可登录账号（演示用，密码为下发密码；role 决定进入学生端还是教师端）
+// 可登录的学生账号（演示用，密码为下发密码）
 const USERS = [
-  { username: "student01", password: "123456", name: "张三", avatar: "张", role: "student" },
-  { username: "student02", password: "123456", name: "李四", avatar: "李", role: "student" },
-  { username: "teacher01", password: "123456", name: "李教授", avatar: "教", role: "teacher" },
+  { username: "2023110001", password: "123456", name: "陈嘉禾", studentId: "2023110001", major: "人工智能学院" },
+  { username: "2023110002", password: "123456", name: "林深夜", studentId: "2023110002", major: "计算机学院" },
 ];
 
 // AI 互动课堂（多智能体）真实链接
@@ -19,44 +18,30 @@ const AI_CLASSROOM_URL = "https://open.maic.chat/classroom/GEFSFOgzV6";
 const COURSES = [
   {
     id: 1,
-    title: "数据科学导论",
-    teacher: "李教授",
-    cover: "📊",
-    category: "理工通识",
-    desc: "面向研究生的数据科学入门，涵盖数据思维、统计基础与可视化方法。",
+    title: "学术写作与规范",
+    teacher: "王怀安 · 人文学院",
+    coverColor: "#5E82D8",
+    coverText: "写",
+    category: "人文通识",
+    desc: "面向研究生的学术写作训练，涵盖文献综述、引用规范与论证结构。",
     progress: 35,
-    // sections：stype 支持 video(视频) / doc(资料) / quiz(测验)
     sections: [
-      { stype: "video", title: "第1章 数据思维", content: "assets/ch1.mp4" },
-      { stype: "video", title: "第2章 数据收集与清洗", content: "assets/ch2.mp4" },
-      { stype: "video", title: "第3章 描述统计与可视化", content: "assets/eth1.mp4" },
-      { stype: "doc", title: "第1章课件·数据思维", content: "assets/slide1.html" },
-      { stype: "doc", title: "第2章课件·数据收集与清洗", content: "assets/slide2.html" },
-      { stype: "doc", title: "第3章课件·描述统计与可视化", content: "assets/slide3.html" },
-      { stype: "quiz", title: "章节测验 1", content: "20 道单选题，限时 25 分钟，覆盖第 1–2 章内容。" },
-      { stype: "quiz", title: "章节测验 2", content: "15 道单选题，限时 20 分钟，覆盖第 3 章内容。" },
+      { stype: "video", title: "第1章 文献检索与综述", content: "assets/ch1.mp4" },
+      { stype: "video", title: "第2章 引用格式与学术诚信", content: "assets/ch2.mp4" },
+      { stype: "video", title: "第3章 论证结构与逻辑", content: "assets/eth1.mp4" },
+      { stype: "doc", title: "第1章课件·文献检索", content: "assets/slide1.html" },
+      { stype: "doc", title: "第2章课件·引用规范", content: "assets/slide2.html" },
+      { stype: "doc", title: "第3章课件·论证结构", content: "assets/slide3.html" },
+      { stype: "quiz", title: "章节测验 1", content: "15 道单选题，限时 20 分钟，覆盖引用规范与学术诚信。" },
+      { stype: "quiz", title: "章节测验 2", content: "12 道单选题，限时 15 分钟，覆盖论证结构。" },
     ],
     discussions: [
-      { user: "张三", content: "老师，第 2 章的方差公式能再推导一遍吗？", time: "2026-09-01" },
-      { user: "李教授", content: "好的，下节课我们专门用 10 分钟讲清方差与标准差的区别。", time: "2026-09-02" },
+      { user: "陈嘉禾", role: "student", content: "老师，间接引用和直接引用在正文标注上有什么区别？", ts: "2026-09-10 09:12" },
+      { user: "王怀安", role: "teacher", content: "间接引用需注明“据某某研究”，直接引用的话加上页码即可，详见第 2 章课件第 4 页。", ts: "2026-09-10 10:05" },
     ],
     homeworks: [
-      { title: "作业 1：数据清洗实践", desc: "使用提供的数据集完成缺失值处理并提交报告。", due: "2026-09-10" },
+      { title: "作业 1：文献综述初稿", desc: "围绕自选课题完成 1500 字综述，使用课程引用格式。", due: "2026-09-20" },
     ],
-    // 教师端：作业与提交（subs）
-    hw: [
-      {
-        title: "作业 1：数据清洗实践",
-        desc: "使用提供的数据集完成缺失值处理并提交报告。",
-        due: "2026-09-10",
-        subs: [
-          { name: "张三", answer: "已完成缺失值处理，报告见附件，共处理 128 条脏数据…", score: "88" },
-          { name: "李四", answer: "（未提交）", score: null },
-        ],
-      },
-    ],
-    // 教师端：班级学情
-    tStats: { attendance: 76, submitRate: 88, active: 42, students: 48 },
     analytics: {
       studyHours: 12.5,
       videoProgress: 68,
@@ -74,41 +59,49 @@ const COURSES = [
   },
   {
     id: 2,
-    title: "科技伦理与人工智能",
-    teacher: "王老师",
-    cover: "🤖",
-    category: "人文通识",
+    title: "数据科学导论",
+    teacher: "李慕白 · 计算机学院",
+    coverColor: "#A99CF5",
+    coverText: "数",
+    category: "理工通识",
     desc: "探讨 AI 发展中的伦理、隐私与社会影响。",
     progress: 0,
     sections: [],   // 空 → 点击后显示「老师暂未上传数据」
     discussions: [],
     homeworks: [],
-    hw: [
-      {
-        title: "作业 1：AI 伦理案例分析",
-        desc: "选择一个 AI 伦理案例进行分析并提交报告。",
-        due: "2026-09-18",
-        subs: [
-          { name: "王五", answer: "以自动驾驶伦理困境为例，分析了责任归属问题…", score: "92" },
-          { name: "赵六", answer: "以人脸识别隐私为例，分析了数据权利边界…", score: null },
-        ],
-      },
-    ],
-    tStats: { attendance: 68, submitRate: 75, active: 30, students: 36 },
     analytics: { studyHours: 0, videoProgress: 0, avgScore: 0, weekly: [] },
   },
-];
-
-// 教师端：通知公告（course_id 为空 = 全校）
-const ANNOUNCEMENTS = [
-  { id: 1, course_id: 1, course_title: "数据科学导论", title: "第 3 讲课件已上传", content: "请同学们下载第 3 章课件，并完成作业 1（截止 9 月 10 日）。", created_at: "2026-08-28" },
-  { id: 2, course_id: null, course_title: "全校", title: "本学期通识课选课说明", content: "选课系统将于 9 月 1 日开放，请关注研究生院教务通知。", created_at: "2026-08-26" },
-];
-
-// 教师端：学生名单（签到 / 提交 / 得分）
-const ROSTER = [
-  { id: 1, name: "张三", course_id: 1, signin: "已签 12/16", submit: "已交", score: "88" },
-  { id: 2, name: "李四", course_id: 1, signin: "已签 9/16", submit: "未交", score: "—" },
-  { id: 3, name: "王五", course_id: 2, signin: "已签 5/16", submit: "已交", score: "92" },
-  { id: 4, name: "赵六", course_id: 2, signin: "已签 11/16", submit: "已交", score: "75" },
+  {
+    id: 3,
+    title: "工程伦理与社会责任",
+    teacher: "赵明 · 马克思主义学院",
+    coverColor: "#62CBA0",
+    coverText: "工",
+    category: "理工通识",
+    desc: "从真实工程事故出发，理解工程师的伦理责任与决策框架。",
+    progress: 60,
+    sections: [
+      { stype: "video", title: "第1章 工程伦理导论", content: "assets/ch1.mp4" },
+      { stype: "doc", title: "第1章课件·伦理决策框架", content: "assets/slide1.html" },
+      { stype: "quiz", title: "章节测验 1", content: "10 道单选题，限时 15 分钟，覆盖第 1 章。" },
+    ],
+    discussions: [
+      { user: "林深夜", role: "student", content: "老师，自动驾驶的“电车难题”在工程中真的需要工程师决策吗？", ts: "2026-09-12 15:30" },
+    ],
+    homeworks: [],
+    analytics: {
+      studyHours: 8,
+      videoProgress: 60,
+      avgScore: 92,
+      weekly: [
+        { label: "周一", val: 20 },
+        { label: "周二", val: 35 },
+        { label: "周三", val: 50 },
+        { label: "周四", val: 30 },
+        { label: "周五", val: 65 },
+        { label: "周六", val: 40 },
+        { label: "周日", val: 25 },
+      ],
+    },
+  },
 ];
