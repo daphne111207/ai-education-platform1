@@ -476,10 +476,11 @@ function openCourse(id, skipNav) {
   const c = COURSES.find((x) => x.id === id);
   if (!c) return;
   const v = $("#view");
+  v.innerHTML = "";   // 先清空，避免内容堆叠
   activeNav = "learn";
   renderNav();
   showCrumb([
-    { label: "课程中心", onclick: () => { activeNav = "home"; renderNav(); hideCrumb(); renderHome($("#view")); } },
+    { label: "课程中心", onclick: () => navigate("home") },
     { label: c.title },
   ]);
   renderLearn(v, c);
