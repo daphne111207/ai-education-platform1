@@ -789,10 +789,16 @@ function renderSignin(v) {
     t.addEventListener("click", () => renderProfileTab(t.getAttribute("data-tab")));
   });
 
+  // 上次若勾选了"记住此账号"，自动填用户名；但不自动登录（永远显示登录页）
   const saved = localStorage.getItem("static_user");
-  if (saved) { try { currentUser = JSON.parse(saved); } catch (e) { currentUser = null; } }
-  if (currentUser) showApp();
-  else { $("#login").style.display = "flex"; $("#app").style.display = "none"; $("#li-pass").addEventListener("keydown", () => {}); }
+  if (saved) {
+    try {
+      const u = JSON.parse(saved);
+      if (u && u.username) $("#li-user").value = u.username;
+    } catch (e) {}
+  }
+  $("#login").style.display = "flex";
+  $("#app").style.display = "none";
 
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" || $("#login").style.display === "none") return;
