@@ -58,6 +58,17 @@ function showErr(m) {
 }
 function storeUser() { try { localStorage.setItem("static_user", JSON.stringify(currentUser)); } catch (e) {} }
 
+/* ---------------- 登录身份切换（学生 / 教师） ---------------- */
+let loginRole = "student";
+function pickRole(role) {
+  loginRole = role;
+  $("#rsStudent").classList.toggle("on", role === "student");
+  $("#rsTeacher").classList.toggle("on", role === "teacher");
+  $("#li-user").placeholder = role === "teacher" ? "教师账号，如 teacher01" : "请输入 8 位学号";
+  $("#demoHint").textContent = role === "teacher" ? "演示账号：teacher01 / 123456" : "演示账号：2023110001 / 123456";
+  $("#li-err").textContent = "";
+}
+
 function getAllUsers() {
   let reg = [];
   try { reg = JSON.parse(localStorage.getItem("reg_users") || "[]"); } catch (e) {}
@@ -111,6 +122,7 @@ function logout() {
   $("#li-remember").checked = false;
   $("#app").style.display = "none";
   $("#login").style.display = "flex";
+  pickRole("student");
 }
 
 function showApp() {

@@ -32,9 +32,13 @@
     </div>
     <div class="login-right">
       <h2 style="margin-bottom:6px">登录进入</h2>
-      <p class="h-sub" style="margin-bottom:18px">使用账号进入学习空间（学生 / 教师）</p>
+      <p class="h-sub" style="margin-bottom:14px">选择身份，进入你的学习空间</p>
+      <div class="role-switch">
+        <button type="button" class="rs-btn on" id="rsStudent" onclick="pickRole('student')">🎓 学生登录</button>
+        <button type="button" class="rs-btn" id="rsTeacher" onclick="pickRole('teacher')">🧑‍🏫 教师登录</button>
+      </div>
       <div id="loginForm">
-        <div class="field"><label>学号 / 用户名</label><input id="li-user" placeholder="如 2023110001 或 teacher01" /></div>
+        <div class="field"><label>学号 / 用户名</label><input id="li-user" placeholder="请输入 8 位学号" /></div>
         <div class="field">
           <label>密码</label>
           <div class="field-in">
@@ -48,7 +52,7 @@
         <p class="muted" style="font-size:12px;margin-top:14px;text-align:center">
           还没有账号？<span class="link" onclick="showRegister()">立即注册</span>
         </p>
-        <p class="muted" style="font-size:11px;margin-top:8px;text-align:center">演示：学生 2023110001 · 教师 teacher01（密码均 123456）</p>
+        <p class="muted" style="font-size:11px;margin-top:8px;text-align:center" id="demoHint">演示账号：2023110001 / 123456</p>
       </div>
 
       <div id="regForm" style="display:none">

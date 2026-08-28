@@ -536,3 +536,9 @@ option{padding:6px}
 .tag-ok{color:#1a7f37;font-weight:600}
 .tag-no{color:#b42318}
 .btn.sm{padding:6px 12px;font-size:13px}
+
+/* ===================== 登录身份切换 ===================== */
+.role-switch{display:flex;gap:8px;margin-bottom:14px}
+.rs-btn{flex:1;padding:10px 0;border-radius:12px;border:1.5px solid var(--border);background:var(--surface);color:var(--text-2);font-weight:700;font-size:13px;cursor:pointer;transition:.18s}
+.rs-btn:hover{border-color:var(--primary);color:var(--primary)}
+.rs-btn.on{background:linear-gradient(120deg,var(--primary-soft),var(--ai-soft));border-color:transparent;color:var(--primary-deep);box-shadow:var(--shadow-sm)}
