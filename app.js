@@ -1,811 +1,571 @@
 /* =========================================================
-   研究生通识课 AI 教育平台 · 学生端（静态展示版 · 图标化重构）
-   纯前端：登录用 localStorage，数据来自 data.js，无后端请求。
+   app.js · 学生端主逻辑（学术专业风）
+   所有数据读写均经 api.js（当前 localStorage，未来可换后端）
    ========================================================= */
 
-const $ = (s) => document.querySelector(s);
-const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
-const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const NF = (n) => Number(n);
+let cur = null;      // 当前登录用户
+let role = "student";
+let curCourse = null;
+let curSection = 0;
+let searchQ = "";
 
-let currentUser = null;
-let activeNav = "home";
-let searchTerm = "";
-
-/* ---------------- 图标初始化 ---------------- */
-function initIcons(root) {
-  (root || document).querySelectorAll("[data-icon]").forEach((node) => {
-    node.innerHTML = icon(node.getAttribute("data-icon"));
+/* ---------- 工具 ---------- */
+function paintIcons(root) {
+  (root || document).querySelectorAll("[data-icon]").forEach(el => {
+    el.innerHTML = icon(el.getAttribute("data-icon"));
   });
 }
-
-/* ---------------- 密码显示切换 ---------------- */
-function togglePwd() {
-  const inp = $("#li-pass");
-  const eye = $("#eyeBtn");
-  if (inp.type === "password") { inp.type = "text"; eye.innerHTML = icon("eye-off"); }
-  else { inp.type = "password"; eye.innerHTML = icon("eye"); }
-}
-
-/* ---------------- toast ---------------- */
 function toast(msg) {
-  let t = $("#toast");
-  if (!t) { t = el("div", "toast"); t.id = "toast"; document.body.appendChild(t); }
-  t.textContent = msg;
-  t.classList.add("show");
-  clearTimeout(t._t);
-  t._t = setTimeout(() => t.classList.remove("show"), 2200);
+  let t = document.querySelector(".toast");
+  if (!t) { t = document.createElement("div"); t.className = "toast"; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._tm); t._tm = setTimeout(() => t.classList.remove("show"), 1800);
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function closeMenus() { document.getElementById("avatarMenu")?.classList.remove("show"); document.getElementById("notifyPanel")?.classList.remove("show"); }
+function $(id) { return document.getElementById(id); }
+
+/* ---------- 登录 ---------- */
+function pickRole(r) {
+  role = r;
+  $("rsStudent").classList.toggle("on", r === "student");
+  $("rsTeacher").classList.toggle("on", r === "teacher");
+  $("li-user").placeholder = r === "student" ? "请输入 8 位学号" : "请输入教师用户名";
+  $("demoHint").textContent = r === "student" ? "演示账号：2023110001 / 123456" : "演示账号：teacher01 / 123456";
+}
+function showRegister() { $("loginForm").style.display = "none"; $("regForm").style.display = "block"; }
+function showLogin() { $("regForm").style.display = "none"; $("loginForm").style.display = "block"; }
+function togglePwd() { const i = $("li-pass"); i.type = i.type === "password" ? "text" : "password"; }
+function togglePwdReg() { const i = $("reg-pass"); i.type = i.type === "password" ? "text" : "password"; }
+function togglePwdReg2() { const i = $("reg-pass2"); i.type = i.type === "password" ? "text" : "password"; }
+
+async function doLogin() {
+  const u = $("li-user").value.trim(), p = $("li-pass").value;
+  if (!u || !p) { $("li-err").textContent = "请输入账号和密码"; return; }
+  try {
+    const user = await api.login(u, p);
+    if (user.role !== role) { $("li-err").textContent = "该账号不是" + (role === "student" ? "学生" : "教师") + "身份"; return; }
+    if ($("li-remember").checked) localStorage.setItem("gep:remember", u);
+    enterApp(user);
+  } catch (e) { $("li-err").textContent = e.message; }
+}
+async function doRegister() {
+  const u = $("reg-user").value.trim(), p = $("reg-pass").value, p2 = $("reg-pass2").value;
+  if (!/^\d{8}$/.test(u)) { $("reg-msg").textContent = "学号需为 8 位数字"; return; }
+  if (p.length < 6) { $("reg-msg").textContent = "密码至少 6 位"; return; }
+  if (p !== p2) { $("reg-msg").textContent = "两次密码不一致"; return; }
+  try {
+    const user = await api.register({ username: u, password: p });
+    enterApp(user);
+    toast("注册成功，已自动登录");
+  } catch (e) { $("reg-msg").textContent = e.message; }
 }
 
-/* ---------------- 登录 / 退出 ---------------- */
-function doLogin() {
-  const u = $("#li-user").value.trim();
-  const p = $("#li-pass").value;
-  const user = getAllUsers().find((x) => x.username === u);
-  if (!user || !checkPass(u, p)) {
-    showErr("账号或密码错误");
-    return;
-  }
-  const prof = getProfile(u);
-  currentUser = { username:  user.username, name: prof.name || user.name || user.username, sid: user.studentId || user.username, major: prof.major || user.major || "—", specialty: prof.specialty || "", cls: prof.cls || "", contact: prof.contact || "", nickname: prof.nickname || prof.name || user.name || user.username, role: user.role || "student" };
-  if ($("#li-remember").checked) storeUser();
-  showApp();
+function enterApp(user) {
+  cur = user; role = user.role;
+  $("login").style.display = "none";
+  $("app").style.display = "flex";
+  $("sidebarSub").textContent = role === "student" ? "学生端" : "教师端";
+  $("aiCard").style.display = role === "student" ? "block" : "none";
+  const initial = (user.name || user.username).slice(0, 1);
+  $("topAvatar").textContent = initial;
+  $("topAvatar").style.background = `linear-gradient(135deg, ${user.color || "#2563EB"}, #7C3AED)`;
+  renderNav();
+  if (role === "teacher") window.teacherNavigate("overview");
+  else navigate("home");
+  paintIcons();
 }
-function showErr(m) {
-  const e = $("#li-err");
-  e.textContent = m;
-  setTimeout(() => { if (e.textContent === m) e.textContent = ""; }, 3000);
-}
-function storeUser() { try { localStorage.setItem("static_user", JSON.stringify(currentUser)); } catch (e) {} }
-
-/* ---------------- 登录身份切换（学生 / 教师） ---------------- */
-let loginRole = "student";
-function pickRole(role) {
-  loginRole = role;
-  $("#rsStudent").classList.toggle("on", role === "student");
-  $("#rsTeacher").classList.toggle("on", role === "teacher");
-  $("#li-user").placeholder = role === "teacher" ? "教师账号，如 teacher01" : "请输入 8 位学号";
-  $("#demoHint").textContent = role === "teacher" ? "演示账号：teacher01 / 123456" : "演示账号：2023110001 / 123456";
-  $("#li-err").textContent = "";
-}
-
-function getAllUsers() {
-  let reg = [];
-  try { reg = JSON.parse(localStorage.getItem("reg_users") || "[]"); } catch (e) {}
-  return USERS.concat(reg);
-}
-
-function showRegister() {
-  $("#loginForm").style.display = "none";
-  $("#regForm").style.display = "block";
-  $("#li-err").textContent = "";
-}
-function showLogin() {
-  $("#regForm").style.display = "none";
-  $("#loginForm").style.display = "block";
-  $("#reg-msg").textContent = "";
-}
-function togglePwdReg() {
-  const inp = $("#reg-pass");
-  const eye = $("#eyeBtn2");
-  if (inp.type === "password") { inp.type = "text"; eye.innerHTML = icon("eye-off"); }
-  else { inp.type = "password"; eye.innerHTML = icon("eye"); }
-}
-function togglePwdReg2() {
-  const inp = $("#reg-pass2");
-  const eye = $("#eyeBtn3");
-  if (inp.type === "password") { inp.type = "text"; eye.innerHTML = icon("eye-off"); }
-  else { inp.type = "password"; eye.innerHTML = icon("eye"); }
-}
-function doRegister() {
-  const sid = $("#reg-user").value.trim();
-  const p1 = $("#reg-pass").value;
-  const p2 = $("#reg-pass2").value;
-  const msg = $("#reg-msg");
-  if (!/^\d{8}$/.test(sid)) { msg.style.color = "var(--danger)"; msg.textContent = "学号必须为 8 位数字"; return; }
-  if (p1.length < 6) { msg.style.color = "var(--danger)"; msg.textContent = "密码至少 6 位"; return; }
-  if (p1 !== p2) { msg.style.color = "var(--danger)"; msg.textContent = "两次输入的密码不一致"; return; }
-  if (getAllUsers().some((x) => x.username === sid)) { msg.style.color = "var(--danger)"; msg.textContent = "该学号已注册，请直接登录"; return; }
-  const reg = [];
-  try { reg.push.apply(reg, JSON.parse(localStorage.getItem("reg_users") || "[]")); } catch (e) {}
-  reg.push({ username: sid, password: p1, name: sid, studentId: sid, major: "—" });
-  localStorage.setItem("reg_users", JSON.stringify(reg));
-  msg.style.color = "var(--ok, #16a34a)";
-  msg.textContent = "✓ 注册成功，请点击下方返回登录";
-}
-
 function logout() {
-  localStorage.removeItem("static_user");
-  currentUser = null;
-  $("#li-user").value = "";
-  $("#li-pass").value = "";
-  $("#li-remember").checked = false;
-  $("#app").style.display = "none";
-  $("#login").style.display = "flex";
-  pickRole("student");
+  closeMenus(); cur = null;
+  $("app").style.display = "none"; $("login").style.display = "flex";
+  pickRole("student"); paintIcons();
 }
 
-function showApp() {
-  $("#login").style.display = "none";
-  $("#app").style.display = "flex";
-  applyAvatar();
-  const isT = currentUser.role === "teacher";
-  $("#aiCard").style.display = isT ? "none" : "block";
-  renderNav();
-  navigate(isT ? "t-dashboard" : "home");
-}
-
-/* ---------------- 个人资料存储 ---------------- */
-function getProfile(u) {
-  let map = {};
-  try { map = JSON.parse(localStorage.getItem("profiles") || "{}"); } catch (e) {}
-  return map[u] || {};
-}
-function setProfile(u, patch) {
-  let map = {};
-  try { map = JSON.parse(localStorage.getItem("profiles") || "{}"); } catch (e) {}
-  map[u] = Object.assign(map[u] || {}, patch);
-  localStorage.setItem("profiles", JSON.stringify(map));
-}
-function checkPass(u, p) {
-  const ov = {};
-  try { Object.assign(ov, JSON.parse(localStorage.getItem("pwd_override") || "{}")); } catch (e) {}
-  if (ov[u] != null) return ov[u] === p;
-  const base = getAllUsers().find((x) => x.username === u);
-  return base && base.password === p;
-}
-function applyAvatar() {
-  const av = $("#topAvatar");
-  if (!av || !currentUser) return;
-  const prof = getProfile(currentUser.username);
-  const text = (prof.avatarText && prof.avatarText.trim()) || currentUser.nickname || currentUser.name || currentUser.username;
-  if (prof.avatarImg) {
-    av.textContent = "";
-    av.style.background = "center/cover no-repeat url(" + prof.avatarImg + ")";
-  } else {
-    av.textContent = text.slice(0, 8);
-    av.style.background = prof.avatarColor || "linear-gradient(135deg,var(--accent),var(--primary))";
-  }
-}
-
-/* ---------------- 头像菜单 ---------------- */
-function toggleAvatarMenu() {
-  $("#avatarMenu").classList.toggle("show");
-}
-function openProfile() {
-  $("#avatarMenu").classList.remove("show");
-  const m = $("#menuWho");
-  m.innerHTML = '<div style="font-size:13px;color:var(--text-2)">学号 ' + currentUser.sid + '</div>' +
-    '<div style="font-size:15px;color:var(--text);font-weight:800;margin-top:2px">' + esc(currentUser.nickname || currentUser.name) + '</div>';
-  $("#profileMask").style.display = "flex";
-  renderProfileTab("info");
-}
-function closeProfile() { $("#profileMask").style.display = "none"; }
-
-function renderProfileTab(tab) {
-  document.querySelectorAll("#profileTabs .tab").forEach((t) => t.classList.toggle("cur", t.getAttribute("data-tab") === tab));
-  const body = $("#profileBody");
-  const prof = getProfile(currentUser.username);
-  if (tab === "info") {
-    const infoBg = prof.avatarImg ? ("center/cover no-repeat url(" + prof.avatarImg + ")") : (prof.avatarColor || "linear-gradient( 135deg,var(--accent),var(--primary))");
-    const infoText = prof.avatarImg ? "" : ((prof.avatarText || currentUser.name || currentUser.username).slice(0, 2));
-    const nm = (currentUser.name && currentUser.name !== currentUser.sid) ? currentUser.name : "未填写";
-    let html =
-      '<div style="display:flex;align-items:center;gap:14px;padding:6px 4px 16px">' +
-        '<div class="avatar lg" style="width:64px;height:64px;font-size:20px;background:' + infoBg + '">' + infoText + '</div>' +
-        '<div><div style="font-size:17px;font-weight:800">' + esc(nm) + '</div>' +
-        '<div style="font-size:12px;color:var(--text-2);margin-top:3px">学号 ' + currentUser.sid + '</div></div>' +
-      '</div>' +
-      '<div class="info-list">' +
-        '<div class="info-row"><span class="info-label">姓名</span><span class="info-val">' + esc(nm) + '</span></div>' +
-        '<div class="info-row"><span class="info-label">学号</span><span class="info-val">' + currentUser.sid + '</span></div>' +
-        '<div class="info-row"><span class="info-label">学院</span><span class="info-val">' + (currentUser.major && currentUser.major !== "—" ? esc(currentUser.major) : "未填写") + '</span></div>' +
-        '<div class="info-row"><span class="info-label">专业</span><span class="info-val">' + (currentUser.specialty ? esc(currentUser.specialty) : "未填写") + '</span></div>' +
-        '<div class="info-row"><span class="info-label">班级</span><span class="info-val">' + (currentUser.cls ? esc(currentUser.cls) : "未填写") + '</span></div>' +
-        '<div class="info-row"><span class="info-label">联系方式</span><span class="info-val">' + (currentUser.contact ? esc(currentUser.contact) : "未填写") + '</span></div>' +
-      '</div>' +
-      '<button class="btn ghost" style="margin-top:14px;width:100%" onclick="editInfo()">编辑资料</button>';
-    body.innerHTML = html;
-  } else if (tab === "nick") {
-    body.innerHTML =
-      '<div class="field"><label>当前昵称</label><div class="muted" style="padding:4px 0">' + esc(currentUser.nickname || currentUser.name) + '</div></div>' +
-      '<div class="field"><label>新昵称</label><input id="nf-nick" placeholder="输入新的昵称" value="' + esc(currentUser.nickname || "") + '" /></div>' +
-      '<button class="btn" style="margin-top:10px" onclick="saveNick()">保存昵称</button>' +
-      '<p id="nick-msg" class="muted" style="min-height:16px;font-size:12px;margin-top:8px;color:var(--success)"></p>';
-  } else if (tab === "avatar") {
-    const colors = ["linear-gradient(135deg,#8AA9F0,#5E82D8)", "linear-gradient(135deg,#FFB49E,#FF8C7A)", "linear-gradient(135deg,#A99CF5,#7C6FD6)", "linear-gradient(135deg,#62CBA0,#3FA98A)", "linear-gradient(135deg,#F5C26B,#E0A23C)", "linear-gradient(135deg,#69B7E8,#4A93C9)"];
-    const cur = prof.avatarImg || "";
-    const prevBg = cur ? ("center/cover no-repeat url(" + cur + ")") : (prof.avatarColor || colors[0]);
-    const prevText = cur ? "" : ((prof.avatarText || currentUser.nickname || currentUser.name || currentUser.username).slice(0, 2));
-    let html = '<div style="text-align:center;padding:8px 0 14px"><div class="avatar lg" id="av-prev" style="width:72px;height:72px;font-size:22px;margin:0 auto;background:' + prevBg + '" data-img="' + cur + '">' + prevText + '</div></div>';
-    html += '<div class="field"><label>上传头像图片（不超过 2MB）</label><input type="file" id="av-file" accept="image/*" onchange="uploadAvatar(this)" /></div>';
-    html += '<div class="field"><label>头像文字（无图片时生效，最多 2 字）</label><input id="av-text" maxlength="2" placeholder="留空则用昵称" value="' + esc(prof.avatarText || "") + '" oninput="updAvPrev()" /></div>';
-    html += '<div style="font-size:12px;color:var(--text-3);margin:6px 0 8px">选择底色（无图片时生效）</div><div class="swatches">';
-    colors.forEach((c) => { html += '<span class="sw" style="background:' + c + '" onclick="pickColor(\'' + c + '\')"></span>'; });
-    html += '</div>';
-    if (cur) html += '<button class="btn ghost" style="margin-top:10px" onclick="removeAvatar()">移除图片，使用文字头像</button>';
-    html += '<button class="btn" style="margin-top:14px" onclick="saveAvatar()">保存头像</button>';
-    body.innerHTML = html;
-  } else if (tab === "pwd") {
-    body.innerHTML =
-      '<div class="field"><label>当前密码</label><input id="pw-old" type="password" placeholder="请输入当前密码" /></div>' +
-      '<div class="field"><label>新密码</label><input id="pw-new" type="password" placeholder="至少 6 位" /></div>' +
-      '<div class="field"><label>确认新密码</label><input id="pw-new2" type="password" placeholder="再次输入新密码" /></div>' +
-      '<button class="btn" style="margin-top:10px" onclick="savePwd()">修改密码</button>' +
-      '<p id="pw-msg" class="muted" style="min-height:16px;font-size:12px;margin-top:8px;color:var(--danger)"></p>';
-  }
-}
-function updAvPrev() {
-  const t = $("#av-text").value.trim() || currentUser.nickname || currentUser.name || currentUser.username;
-  const prev = $("#av-prev");
-  if (!prev.getAttribute("data-img")) prev.textContent = t.slice(0, 2);
-}
-function pickColor(c) { $("#av-prev").style.background = c; $("#av-prev").setAttribute("data-c", c); }
-function uploadAvatar(input) {
-  const file = input.files && input.files[0];
-  if (!file) return;
-  if (file.size > 2 * 1024 * 1024) { toast("图片过大，请选择 2MB 以内的图片"); return; }
-  const reader = new FileReader();
-  reader.onload = function () {
-    const url = reader.result;
-    const prev = $("#av-prev");
-    prev.style.background = "center/cover no-repeat url(" + url + ")";
-    prev.setAttribute("data-img", url);
-    prev.textContent = "";
-  };
-  reader.readAsDataURL(file);
-}
-function removeAvatar() {
-  const prev = $("#av-prev");
-  const prof = getProfile(currentUser.username);
-  prev.setAttribute("data-img", "");
-  prev.style.background = prof.avatarColor || "linear-gradient(135deg,#8AA9F0,#5E82D8)";
-  prev.textContent = (prof.avatarText || currentUser.nickname || currentUser.name || currentUser.username).slice(0, 2);
-}
-function saveNick() {
-  const v = $("#nf-nick").value.trim();
-  if (!v) { $("#nick-msg").style.color = "var(--danger)"; $("#nick-msg").textContent = "昵称不能为空"; return; }
-  setProfile(currentUser.username, { avatarText: "", nickname: v });
-  currentUser.nickname = v;
-  applyAvatar();
-  $("#nick-msg").textContent = "✓ 昵称已更新";
-  setTimeout(() => { $("#nick-msg").textContent = ""; }, 1500);
-}
-function saveAvatar() {
-  const img = $("#av-prev").getAttribute("data-img") || "";
-  const c = $("#av-prev").getAttribute("data-c") || getProfile(currentUser.username).avatarColor || "linear-gradient(135deg,#8AA9F0,#5E82D8)";
-  const t = $("#av-text").value.trim();
-  setProfile(currentUser.username, { avatarColor: c, avatarText: t, avatarImg: img });
-  applyAvatar();
-  toast("✓ 头像已更新");
-  renderProfileTab("info");
-}
-function editInfo() {
-  const body = $("#profileBody");
-  body.innerHTML =
-    '<div class="field"><label>姓名</label><input id="inf-name" value="' + esc(currentUser.name || "") + '" placeholder="请输入姓名" /></div>' +
-    '<div class="field"><label>学号</label><input value="' + currentUser.sid + '" disabled style="opacity:.7" /></div>' +
-    '<div class="field"><label>学院</label><input id="inf-major" value="' + esc(currentUser.major && currentUser.major !== "—" ? currentUser.major : "") + '" placeholder="如 计算机学院" /></div>' +
-    '<div class="field"><label>专业</label><input id="inf-spec" value="' + esc(currentUser.specialty || "") + '" placeholder="如 计算机科学与技术" /></div>' +
-    '<div class="field"><label>班级</label><input id="inf-class" value="' + esc(currentUser.cls || "") + '" placeholder="如 计科2301班" /></div>' +
-    '<div class="field"><label>联系方式</label><input id="inf-contact" value="' + esc(currentUser.contact || "") + '" placeholder="手机或邮箱" /></div>' +
-    '<div style="display:flex;gap:10px;margin-top:14px">' +
-      '<button class="btn" onclick="saveInfo()">保存</button>' +
-      '<button class="btn ghost" onclick="renderProfileTab(\'info\')">取消</button>' +
-    '</div>';
-}
-function saveInfo() {
-  const name = $("#inf-name").value.trim();
-  const major = $("#inf-major").value.trim();
-  const spec = $("#inf-spec").value.trim();
-  const cls = $("#inf-class").value.trim();
-  const contact = $("#inf-contact").value.trim();
-  if (!name) { toast("姓名不能为空"); return; }
-  currentUser.name = name;
-  currentUser.major = major || "—";
-  currentUser.specialty = spec;
-  currentUser.cls = cls;
-  currentUser.contact = contact;
-  setProfile(currentUser.username, { name: name, major: currentUser.major, specialty: spec, cls: cls, contact: contact });
-  applyAvatar();
-  toast("✓ 资料已更新");
-  renderProfileTab("info");
-}
-function savePwd() {
-  const oldP = $("#pw-old").value, newP = $("#pw-new").value, newP2 = $("#pw-new2").value;
-  const msg = $("#pw-msg");
-  if (!checkPass(currentUser.username, oldP)) { msg.textContent = "当前密码错误"; return; }
-  if (newP.length < 6) { msg.textContent = "新密码至少 6 位"; return; }
-  if (newP !== newP2) { msg.textContent = "两次输入的新密码不一致"; return; }
-  const reg = [];
-  try { reg.push.apply(reg, JSON.parse(localStorage.getItem("reg_users") || "[]")); } catch (e) {}
-  const i = reg.findIndex((x) => x.username === currentUser.username);
-  if (i >= 0) { reg[i].password = newP; localStorage.setItem("reg_users", JSON.stringify(reg)); }
-  else { const ov = {}; try { Object.assign(ov, JSON.parse(localStorage.getItem("pwd_override") || "{}")); } catch (e) {} ov[currentUser.username] = newP; localStorage.setItem("pwd_override", JSON.stringify(ov)); }
-  msg.style.color = "var(--success)"; msg.textContent = "✓ 密码已修改";
-  $("#pw-old").value = ""; $("#pw-new").value = ""; $("#pw-new2").value = "";
-}
-
-/* ---------------- 顶部通知 ---------------- */
-const NOTIFS = [
-  { ic: "clipboard", title: "新作业发布", desc: "《学术写作与规范》第三次随笔", time: "10 分钟前", to: "learn:1" },
-  { ic: "map-pin", title: "课堂签到提醒", desc: "数据科学导论 第 5 讲 10:00 开始", time: "1 小时前", to: "signin" },
-  { ic: "message", title: "教师回复了你", desc: "王怀安：方差与标准差的区别已补充", time: "昨天", to: "learn:1" },
+/* ---------- 导航 ---------- */
+const STUDENT_NAV = [
+  { key: "home", icon: "home", label: "学习概览" },
+  { key: "course", icon: "book-open", label: "课程中心" },
+  { key: "aichat", icon: "bot", label: "AI 互动课堂" },
+  { key: "discuss", icon: "message", label: "课程讨论" },
+  { key: "group", icon: "users", label: "班级群聊" },
+  { key: "study", icon: "users", label: "学习小组" },
+  { key: "signin", icon: "map-pin", label: "课堂签到" },
+  { key: "dashboard", icon: "bar-chart", label: "学情看板" },
 ];
-
-function renderNotif() {
-  const box = $("#notifyPanel");
-  box.innerHTML = '<div class="nt-head"><span>通知</span><span class="muted">共 ' + NOTIFS.length + ' 条</span></div>';
-  if (!NOTIFS.length) { box.innerHTML += '<div class="nt-empty">暂无通知</div>'; return; }
-  NOTIFS.forEach((n) => {
-    const item = el("div", "nt-item");
-    const icBox = el("div", "nt-ic"); icBox.innerHTML = icon(n.ic, 18);
-    const body = el("div"); body.style.flex = "1";
-    body.innerHTML = '<div style="font-weight:700">' + esc(n.title) + '</div><div class="nt-body">' + esc(n.desc) + '</div>';
-    const t = el("div", "muted"); t.style.fontSize = "11px"; t.style.whiteSpace = "nowrap"; t.textContent = n.time;
-    item.appendChild(icBox); item.appendChild(body); item.appendChild(t);
-    item.onclick = () => { box.classList.remove("show"); const [k, cid] = n.to.split(":"); navigate(k); if (cid) openCourse(+cid, true); };
-    box.appendChild(item);
-  });
-}
-
-/* ---------------- 导航 ---------------- */
-const NAV = [
-  { key: "home", ic: "book-open", label: "课程中心" },
-  { key: "aichat", ic: "bot", label: "AI 课堂" },
-  { key: "dashboard", ic: "bar-chart", label: "学情看板" },
-  { key: "signin", ic: "check-circle", label: "课堂签到" },
-];
-const NAV_TEACHER = [
-  { key: "t-dashboard", ic: "bar-chart", label: "学情概览" },
-  { key: "t-courses", ic: "book-open", label: "我的课程" },
-  { key: "t-announce", ic: "bell", label: "公告管理" },
-  { key: "t-students", ic: "users", label: "学生名单" },
-];
-
 function renderNav() {
-  const nav = $("#nav");
-  nav.innerHTML = "";
-  const isT = currentUser.role === "teacher";
-  $("#sidebarSub").textContent = isT ? "教师端" : "学生端";
-  const ITEMS = isT ? NAV_TEACHER : NAV;
-  ITEMS.forEach((n) => {
-    const item = el("div", "nav-item" + (n.key === activeNav ? " active" : ""));
-    const ic = el("span", "ic"); ic.innerHTML = icon(n.ic, 18);
-    item.appendChild(ic);
-    item.appendChild(el("span", null, n.label));
-    item.onclick = () => navigate(n.key);
-    nav.appendChild(item);
-  });
+  if (role === "teacher") { window.renderTeacherNav(); return; }
+  const nav = $("nav");
+  nav.innerHTML = STUDENT_NAV.map(n =>
+    `<div class="nav-item" data-key="${n.key}" onclick="navigate('${n.key}')"><span class="ic" data-icon="${n.icon}"></span>${n.label}</div>`
+  ).join("");
+  paintIcons(nav);
 }
-
+const PAGES = ["home", "course", "aichat", "discuss", "group", "study", "signin", "dashboard"];
 function navigate(key) {
-  activeNav = key;
-  renderNav();
-  const v = $("#view");
-  v.innerHTML = "";
-  hideCrumb();
-  if (key === "home") return renderHome(v);
-  if (key === "aichat") return renderAIChat(v);
-  if (key === "dashboard") return renderDashboard(v);
-  if (key === "signin") return renderSignin(v);
-  if (key === "t-dashboard") return tDashboard(v);
-  if (key === "t-courses") return tCourses(v);
-  if (key === "t-announce") return tAnnouncements(v);
-  if (key === "t-students") return tRoster(v);
+  if (role === "teacher") { closeMenus(); window.teacherNavigate(key); return; }
+  closeMenus();
+  document.querySelectorAll(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.key === key));
+  const v = $("view"); v.innerHTML = "";
+  ({ home: renderHome, course: renderCourseCenter, aichat: renderAIChat,
+     discuss: renderDiscussion, group: renderGroups, study: renderStudyGroups,
+     signin: renderSignin, dashboard: renderDashboard }[key])(v);
+  paintIcons(v);
+  window.scrollTo(0, 0);
 }
 
-/* ---------------- 面包屑 ---------------- */
-function showCrumb(parts) {
-  const v = $("#view");
-  let cr = $("#crumb");
-  if (!cr) { cr = el("div", "crumb"); cr.id = "crumb"; v.parentNode.insertBefore(cr, v); }
-  cr.className = "crumb show";
-  cr.innerHTML = "";
-  parts.forEach((p, i) => {
-    if (i > 0) cr.appendChild(Object.assign(el("span", "sep"), { textContent: "/" }));
-    const item = el("span", "c-item" + (i === parts.length - 1 ? " cur" : ""), p.label);
-    if (p.onclick) item.onclick = p.onclick;
-    cr.appendChild(item);
+/* ---------- 学习概览（首页） ---------- */
+async function renderHome(v) {
+  const d = await api.getDashboard();
+  const courses = await api.getCourses();
+  const anns = await api.getAnnouncements();
+  v.innerHTML = `
+    <div class="crumb"><span class="c-item cur">学习概览</span></div>
+    <div class="h-title">学习概览</div>
+    <div class="h-sub">欢迎回来，${esc(cur.name)} · 本学期通识课学习一览</div>
+    <div class="stat-grid">
+      <div class="stat"><div class="ic"><span class="ic" data-icon="book-open"></span></div><div class="num">${courses.length}</div><div class="lbl">在学课程</div></div>
+      <div class="stat"><div class="ic g"><span class="ic" data-icon="clock"></span></div><div class="num">${d.totalHours}h</div><div class="lbl">累计学习时长</div></div>
+      <div class="stat"><div class="ic s"><span class="ic" data-icon="trending-up"></span></div><div class="num">${d.avgVideo}%</div><div class="lbl">平均视频完成</div></div>
+      <div class="stat"><div class="ic a"><span class="ic" data-icon="check-circle"></span></div><div class="num">${d.signRate}%</div><div class="lbl">签到率</div></div>
+    </div>
+    <div class="ai-banner">
+      <div class="emoji">🤖</div>
+      <div style="flex:1"><h3>AI 互动课堂 · 多智能体伴学</h3><p>讲师 / 助教 / 学伴三类智能体协同答疑，基于 OpenMAIC 多智能体框架。</p></div>
+      <button class="btn ai" onclick="navigate('aichat')">进入对话</button>
+    </div>
+    <div class="h-title2">我的课程</div>
+    <div class="course-grid">${courses.map(courseCard).join("")}</div>
+    <div class="h-title2 mt">通知公告</div>
+    <div class="ann-list">${anns.slice(0, 4).map(annItem).join("")}</div>
+  `;
+  bindCourseCards(v);
+}
+function courseCard(c) {
+  return `<div class="course-card" data-id="${c.id}">
+    <div class="course-cover" style="background:linear-gradient(135deg,${c.coverColor},${shade(c.coverColor)})">${c.coverText}</div>
+    <div class="course-body">
+      <h4>${esc(c.title)}</h4>
+      <div class="course-meta">${esc(c.teacher)} · ${esc(c.category)}</div>
+      <div class="progress"><span style="width:${c.progress}%"></span></div>
+      <p>已完成 ${c.progress}%</p>
+    </div></div>`;
+}
+function annItem(a) {
+  return `<div class="ann-item">
+    <div class="ann-title"><span>${esc(a.title)}</span><span class="ann-course">${esc(a.course_title)}</span></div>
+    <div class="ann-content">${esc(a.content)}</div>
+    <div class="ann-date">${esc(a.created_at)}</div></div>`;
+}
+function shade(hex) { // 简单加深
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, (n >> 16) - 30), g = Math.max(0, ((n >> 8) & 255) - 30), b = Math.max(0, (n & 255) - 30);
+  return `rgb(${r},${g},${b})`;
+}
+function bindCourseCards(v) {
+  v.querySelectorAll(".course-card").forEach(el => el.onclick = () => openCourse(+el.dataset.id));
+}
+
+/* ---------- 课程中心 ---------- */
+async function renderCourseCenter(v) {
+  const courses = await api.getCourses();
+  const cats = ["全部", ...new Set(courses.map(c => c.category))];
+  v.innerHTML = `
+    <div class="crumb"><span class="c-item cur">课程中心</span></div>
+    <div class="h-title">课程中心</div>
+    <div class="h-sub">共 ${courses.length} 门通识课 · 点击进入学习</div>
+    <div class="filter" id="catFilter">${cats.map((c, i) => `<button class="${i === 0 ? "active" : ""}" data-cat="${esc(c)}" onclick="filterCat('${esc(c)}')">${esc(c)}</button>`).join("")}</div>
+    <div class="course-grid" id="courseGrid">${courses.map(courseCard).join("")}</div>`;
+  bindCourseCards(v);
+}
+function filterCat(cat) {
+  document.querySelectorAll("#catFilter button").forEach(b => b.classList.toggle("active", b.dataset.cat === cat));
+  const grid = $("courseGrid");
+  api.getCourses().then(courses => {
+    const list = cat === "全部" ? courses : courses.filter(c => c.category === cat);
+    grid.innerHTML = list.map(courseCard).join("") || `<p class="muted">该分类暂无课程</p>`;
+    bindCourseCards(grid);
   });
 }
-function hideCrumb() { const c = $("#crumb"); if (c) c.className = "crumb"; }
 
-/* ---------------- 课程中心（含搜索过滤） ---------------- */
-function renderHome(v) {
-  v.appendChild(el("div", "h-title", "课程中心"));
-  v.appendChild(el("p", "h-sub", currentUser.name + "，" + currentUser.major + " · 这里有你的通识课程"));
-
-  const grid = el("div", "course-grid");
-  v.appendChild(grid);
-
-  const list = COURSES.filter((c) => {
-    if (!searchTerm) return true;
-    const s = searchTerm.toLowerCase();
-    return (c.title + c.teacher + c.category + (c.desc || "")).toLowerCase().includes(s);
-  });
-
-  if (!list.length) {
-    grid.innerHTML = '<div class="card" style="grid-column:1/-1;text-align:center;padding:48px;color:var(--text-3)">未找到与「' + esc(searchTerm) + '」相关的课程</div>';
-    return;
+/* ---------- 课程详情（学习页） ---------- */
+async function openCourse(id) {
+  const c = await api.getCourse(id); curCourse = c; curSection = 0;
+  document.querySelectorAll(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.key === "course"));
+  const v = $("view"); renderLearn(v, c); paintIcons(v);
+}
+async function renderLearn(v, c) {
+  if (!c) c = curCourse;
+  const secs = await api.getSections(c.id);
+  const hasSec = secs.length > 0;
+  const sec = secs[curSection] || {};
+  const note = await api.getNote(c.id, curSection);
+  v.innerHTML = `
+    <div class="crumb">
+      <span class="c-item" onclick="navigate('course')">课程中心</span><span class="sep">/</span>
+      <span class="c-item cur">${esc(c.title)}</span>
+    </div>
+    <div class="h-title">${esc(c.title)}</div>
+    <div class="h-sub">${esc(c.teacher)} · ${esc(c.category)} · ${esc(c.desc)}</div>
+    ${hasSec ? `<div class="learn">
+      <div class="chapter">
+        <div class="ch">章节目录</div>
+        ${secs.map((s, i) => `<div class="item ${i === curSection ? "active" : ""}" onclick="gotoSection(${i})"><span class="ic" data-icon="${secIcon(s.stype)}"></span>${esc(s.title)}</div>`).join("")}
+      </div>
+      <div>
+        ${secHtml(sec)}
+        <div class="learn-tabs">
+          <button class="active" onclick="showLearnTab(this,'doc')">课件资料</button>
+          <button onclick="showLearnTab(this,'talk')">讨论</button>
+          <button onclick="showLearnTab(this,'hw')">作业</button>
+        </div>
+        <div id="learnTab" style="margin-top:14px"></div>
+      </div>
+      <div>
+        <div class="side-block card"><div class="h-title2">随堂笔记</div>
+          <textarea class="note" id="noteArea" rows="7" placeholder="记录这一节的重点…">${esc(note)}</textarea>
+          <button class="btn sm" style="margin-top:8px" onclick="saveNoteNow(${c.id},${curSection})">保存笔记</button>
+        </div>
+        <div class="side-block card"><div class="h-title2">学习进度</div>
+          <div class="progress"><span style="width:${c.progress}%"></span></div>
+          <p class="muted" style="margin-top:8px;font-size:12px">已完成 ${c.progress}%</p>
+          <button class="btn ghost sm" style="margin-top:8px" onclick="bumpProgress(${c.id})">标记本节完成 +10%</button>
+        </div>
+      </div>
+    </div>` :
+    `<div class="card" style="text-align:center;padding:48px;color:var(--text-2)">
+      <div style="font-size:40px;margin-bottom:10px">📭</div>
+      <div style="font-weight:700;font-size:16px">老师暂未上传内容</div>
+      <div class="muted" style="margin-top:6px">本课程章节资料正在准备中，敬请期待。</div>
+    </div>`}
+  `;
+  if (hasSec) showLearnTab(document.querySelector(".learn-tabs button"), "doc");
+}
+function secIcon(t) { return t === "video" ? "video" : t === "doc" ? "file-text" : "clipboard"; }
+function secHtml(s) {
+  if (s.stype === "video") return `<div class="video"><div style="text-align:center"><div class="play" data-icon="video"></div><div style="margin-top:12px;opacity:.85">${esc(s.title)}</div></div></div>`;
+  if (s.stype === "doc") return `<div class="doc-frame"><iframe src="${esc(s.content)}"></iframe></div>`;
+  if (s.stype === "quiz") return `<div class="quiz-box"><div class="h-title2">${esc(s.title)}</div><p class="muted">${esc(s.content)}</p><div style="margin-top:14px"><button class="btn" onclick="toast('测验已开始（演示）')">开始测验</button></div></div>`;
+  return `<div class="card">${esc(s.title)}</div>`;
+}
+function gotoSection(i) { curSection = i; renderLearn($("view"), curCourse); paintIcons($("view")); }
+async function saveNoteNow(cid, sec) {
+  await api.saveNote(cid, sec, $("noteArea").value);
+  toast("笔记已保存");
+}
+async function bumpProgress(cid) {
+  const c = await api.getCourse(cid);
+  const nv = Math.min(100, (c.progress || 0) + 10);
+  await api.setProgress(cid, nv); curCourse.progress = nv;
+  toast("进度已更新 " + nv + "%");
+  renderLearn($("view"), curCourse); paintIcons($("view"));
+}
+async function showLearnTab(btn, tab) {
+  document.querySelectorAll(".learn-tabs button").forEach(b => b.classList.toggle("active", b === btn));
+  const box = $("learnTab"); const c = curCourse;
+  if (tab === "doc") {
+    const secs = await api.getSections(c.id);
+    box.innerHTML = `<div class="list-item"><div class="li-ic"><span class="ic" data-icon="file-text"></span></div><div class="li-body"><h4>课程课件合集</h4><p>共 ${secs.filter(s => s.stype === "doc").length} 份课件</p></div></div>`;
+  } else if (tab === "talk") {
+    box.innerHTML = `<div id="discBox"></div>`;
+    renderDiscussionInto(box, c.id);
+  } else {
+    const c2 = await api.getCourse(c.id);
+    box.innerHTML = (c2.homeworks.length ? c2.homeworks.map(h => `<div class="list-item"><div class="li-ic"><span class="ic" data-icon="clipboard"></span></div><div class="li-body"><h4>${esc(h.title)}</h4><p>截止 ${esc(h.due)} · ${esc(h.desc)}</p></div><button class="btn sm" onclick="toast('作业提交（演示）')">去提交</button></div>`).join("") : `<p class="muted">本课程暂无作业</p>`);
   }
-  list.forEach((c) => {
-    const card = el("div", "course-card");
-    const cover = el("div", "course-cover", c.coverText);
-    cover.style.background = c.coverColor;
-    const body = el("div", "course-body");
-    body.appendChild(el("h4", null, c.title));
-    body.appendChild(el("div", "course-meta", c.category + " · " + c.teacher));
-    const prog = el("div", "progress");
-    const span = el("span");
-    const saved = NF(localStorage.getItem("progress_" + c.id));
-    const pct = saved || c.progress;
-    span.style.width = pct + "%";
-    prog.appendChild(span);
-    body.appendChild(prog);
-    card.appendChild(cover);
-    card.appendChild(body);
-    card.onclick = () => openCourse(c.id);
-    grid.appendChild(card);
-  });
-
-  // 通知公告（本人课程 + 全校）
-  const anns = ANNOUNCEMENTS.filter((a) => !a.course_id || COURSES.some((c) => c.id === a.course_id)).slice(0, 3);
-  if (anns.length) {
-    const box = el("div", "card");
-    box.style.cssText = "margin-top:22px;padding:18px";
-    box.appendChild(el("div", "h-title2", "📢 通知公告"));
-    const list = el("div", "ann-list");
-    anns.forEach((a) => {
-      const item = el("div", "ann-item");
-      item.innerHTML = `<div class="ann-title">${esc(a.title)}<span class="ann-course">${esc(a.course_title || "全校")}</span></div><div class="ann-content">${esc(a.content)}</div><div class="muted2" style="margin-top:6px">${esc(a.created_at)}</div>`;
-      list.appendChild(item);
-    });
-    box.appendChild(list);
-    v.appendChild(box);
-  }
+  paintIcons(box);
 }
 
-$("#topSearch").addEventListener("input", (e) => {
-  searchTerm = e.target.value.trim();
-  if (activeNav === "home") renderHome($("#view"));
+/* ---------- 课程讨论 ---------- */
+async function renderDiscussion(v) {
+  const courses = await api.getCourses();
+  v.innerHTML = `
+    <div class="crumb"><span class="c-item cur">课程讨论</span></div>
+    <div class="h-title">课程讨论</div>
+    <div class="h-sub">选择课程，查看或发起讨论</div>
+    <div class="filter" id="discFilter">${courses.map((c, i) => `<button class="${i === 0 ? "active" : ""}" data-id="${c.id}" onclick="switchDisc(${c.id})">${esc(c.title)}</button>`).join("")}</div>
+    <div id="discBox" class="card"></div>`;
+  renderDiscussionInto($("discBox"), courses[0].id);
+  paintIcons(v);
+}
+async function switchDisc(id) {
+  document.querySelectorAll("#discFilter button").forEach(b => b.classList.toggle("active", +b.dataset.id === id));
+  renderDiscussionInto($("discBox"), id);
+}
+async function renderDiscussionInto(box, courseId) {
+  const list = await api.getDiscussion(courseId);
+  box.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px">
+      ${list.map(m => `<div class="chat-msg ${m.role === "teacher" ? "ai" : ""}" style="align-self:flex-start;max-width:88%">
+        <div class="meta"><b>${esc(m.user)}</b>${m.role === "teacher" ? '<span class="badge-teacher">教师</span>' : ""}<span>${esc(m.ts)}</span></div>
+        <div>${esc(m.content)}</div></div>`).join("")}
+    </div>
+    <div class="composer">
+      <input id="discInput" placeholder="发表你的观点…" onkeydown="if(event.key==='Enter')postDisc(${courseId})" />
+      <button class="btn" onclick="postDisc(${courseId})">发送</button>
+    </div>`;
+  paintIcons(box);
+}
+async function postDisc(courseId) {
+  const inp = $("discInput"); const t = inp.value.trim(); if (!t) return;
+  await api.postDiscussion(courseId, { user: cur.name, content: t });
+  renderDiscussionInto($("discBox"), courseId);
+}
+
+/* ---------- 班级群聊 ---------- */
+async function renderGroups(v) {
+  const groups = await api.getGroups();
+  v.innerHTML = `
+    <div class="crumb"><span class="c-item cur">班级群聊</span></div>
+    <div class="h-title">班级群聊</div>
+    <div class="h-sub">与同学、助教实时交流（演示：消息保存在本地）</div>
+    <div class="chat-layout">
+      <div class="group-list">${groups.map((g, i) => `<div class="g ${i === 0 ? "active" : ""}" data-id="${g.id}" onclick="switchGroup('${g.id}',this)">
+        <div class="g-ava ${g.warm ? "warm" : ""}">${g.emoji}</div>
+        <div><div style="font-weight:700;font-size:13.5px">${esc(g.name)}</div></div></div>`).join("")}</div>
+      <div class="chat-panel"><div class="chat-head"><span class="ic" data-icon="users"></span><span id="grpTitle">${esc(groups[0].name)}</span></div>
+        <div class="chat-msgs" id="grpMsgs"></div>
+        <div class="composer"><input id="grpInput" placeholder="输入消息…" onkeydown="if(event.key==='Enter')sendGroup()" /><button class="btn" onclick="sendGroup()">发送</button></div>
+      </div>
+    </div>`;
+  paintIcons(v);
+  loadGroupMsgs(groups[0].id);
+}
+function switchGroup(id, el) {
+  document.querySelectorAll(".group-list .g").forEach(g => g.classList.toggle("active", g === el));
+  $("grpTitle").textContent = el.querySelector("div:last-child>div").textContent;
+  loadGroupMsgs(id);
+}
+async function loadGroupMsgs(id) {
+  const list = await api.getGroupMessages(id);
+  const box = $("grpMsgs");
+  box.innerHTML = list.length ? list.map(m => `<div class="chat-msg ${m.role === "teacher" ? "ai" : ""}" style="align-self:${m.role === "me" ? "flex-end" : "flex-start"};max-width:78%">
+    <div class="meta"><b>${esc(m.user)}</b>${m.role === "teacher" ? '<span class="badge-teacher">教师</span>' : ""}<span>${esc(m.ts)}</span></div>
+    <div>${esc(m.content)}</div></div>`).join("")
+    : `<div class="sys-msg">暂无消息，打个招呼吧 👋</div>`;
+  box.scrollTop = box.scrollHeight; paintIcons(box);
+}
+async function sendGroup() {
+  const inp = $("grpInput"); const t = inp.value.trim(); if (!t) return;
+  const id = document.querySelector(".group-list .g.active")?.dataset.id;
+  await api.sendGroupMessage(id, { user: cur.name, role: "student", content: t });
+  inp.value = ""; loadGroupMsgs(id);
+}
+
+/* ---------- 学习小组 ---------- */
+async function renderStudyGroups(v) {
+  const groups = await api.getStudyGroups();
+  v.innerHTML = `
+    <div class="crumb"><span class="c-item cur">学习小组</span></div>
+    <div class="h-title">学习小组</div>
+    <div class="h-sub">加入志同道合的同学，互助共学</div>
+    <div class="tgrid">${groups.map(g => `<div class="tcourse">
+      <div class="g-ava" style="width:40px;height:40px;font-size:18px">👥</div>
+      <div class="tt">${esc(g.name)}</div>
+      <div class="tm">所属课程：${esc(g.course)} · ${g.members} 人</div>
+      <div class="muted" style="margin:8px 0;font-size:12.5px">${esc(g.desc)}</div>
+      <button class="btn sm" onclick="joinGroup('${g.id}')">加入小组</button>
+    </div>`).join("")}</div>`;
+  paintIcons(v);
+}
+async function joinGroup(id) {
+  await api.joinStudyGroup(id); toast("已申请加入，等待组长确认（演示）"); renderStudyGroups($("view")); paintIcons($("view"));
+}
+
+/* ---------- 课堂签到 ---------- */
+async function renderSignin(v) {
+  const tasks = await api.getSignIns();
+  v.innerHTML = `
+    <div class="crumb"><span class="c-item cur">课堂签到</span></div>
+    <div class="h-title">课堂签到</div>
+    <div class="h-sub">${tasks.filter(t => t.done).length}/${tasks.length} 已完成签到</div>
+    <div class="signin-grid">${tasks.map(t => `<div class="signin-card" onclick="openSignin('${t.id}')">
+      <div class="sc-ic">${t.done ? "✅" : iconName(t.mode)}</div>
+      <h4>${esc(t.course)}</h4><p>${t.mode} · 截止 ${esc(t.deadline)}</p>
+      <p style="color:${t.done ? "var(--success)" : "var(--text-3)"};font-weight:700">${t.done ? "已签到" : "待签到"}</p></div>`).join("")}</div>
+    <div id="signinDetail"></div>`;
+  paintIcons(v);
+}
+function iconName(mode) { return mode === "定位" ? "📍" : mode === "二维码" ? "🔳" : "✋"; }
+async function openSignin(id) {
+  const tasks = await api.getSignIns(); const t = tasks.find(x => x.id === id);
+  const box = $("signinDetail");
+  if (t.done) {
+    box.innerHTML = `<div class="signin-panel"><div class="sp-done">✅ 你已于 ${esc(t.at || "")} 完成签到（${esc(t.mode)}）</div></div>`;
+    paintIcons(box); return;
+  }
+  box.innerHTML = `
+    <div class="signin-panel">
+      <div class="h-title2">${esc(t.course)} · ${esc(t.mode)}签到</div>
+      <div class="row" style="align-items:stretch">
+        <div style="flex:1;min-width:240px">
+          <div class="sp-map"><span class="sp-pin">📍</span>正在获取你的位置…（演示）</div>
+          <div class="sp-info">请在 ${esc(t.deadline)} 前完成签到。</div>
+          <div class="sp-action"><button class="btn" onclick="confirmSignin('${t.id}','定位')">确认定位签到</button></div>
+        </div>
+        <div style="flex:1;min-width:240px">
+          <div class="sp-qr"><span class="ic" data-icon="users"></span>扫码签到<br>打开手机相机扫描</div>
+          <div class="sp-action"><button class="btn ghost" onclick="confirmSignin('${t.id}','二维码')">模拟扫码</button></div>
+        </div>
+      </div>
+    </div>`;
+  paintIcons(box);
+}
+async function confirmSignin(id, method) {
+  await api.doSignIn(id, method, { ts: Date.now() }); toast("签到成功"); renderSignin($("view")); paintIcons($("view"));
+}
+
+/* ---------- 学情看板 ---------- */
+async function renderDashboard(v) {
+  const d = await api.getDashboard();
+  const maxV = Math.max(1, ...d.weekly.map(w => w.val));
+  v.innerHTML = `
+    <div class="crumb"><span class="c-item cur">学情看板</span></div>
+    <div class="h-title">学情看板</div>
+    <div class="h-sub">${esc(cur.name)} 的个人学习数据</div>
+    <div class="stat-grid">
+      <div class="stat"><div class="ic"><span class="ic" data-icon="clock"></span></div><div class="num">${d.totalHours}h</div><div class="lbl">本周学习时长</div></div>
+      <div class="stat"><div class="ic g"><span class="ic" data-icon="trending-up"></span></div><div class="num">${d.avgVideo}%</div><div class="lbl">视频完成率</div></div>
+      <div class="stat"><div class="ic s"><span class="ic" data-icon="award"></span></div><div class="num">${d.avgScore}</div><div class="lbl">平均成绩</div></div>
+      <div class="stat"><div class="ic a"><span class="ic" data-icon="check-circle"></span></div><div class="num">${d.signRate}%</div><div class="lbl">签到率</div></div>
+    </div>
+    <div class="row" style="align-items:stretch">
+      <div class="chart-card" style="flex:1.4;min-width:320px">
+        <div class="h-title2">本周每日学习时长</div>
+        <div class="bars">${d.weekly.map(w => `<div class="bar"><div class="col" style="height:${Math.round(w.val / maxV * 100)}%"></div><span class="lab">${esc(w.label)}</span></div>`).join("")}</div>
+      </div>
+      <div class="chart-card" style="flex:1;min-width:240px">
+        <div class="h-title2">视频完成率</div>
+        <div style="display:flex;align-items:center;gap:18px;margin-top:10px">
+          <div class="donut" style="background:conic-gradient(var(--primary) 0 ${d.avgVideo}%,var(--surface-3) ${d.avgVideo}% 100%)"><span>${d.avgVideo}%</span></div>
+          <div class="muted">按所选课程平均计算</div>
+        </div>
+      </div>
+    </div>
+    <div class="chart-card mt">
+      <div class="h-title2">各课程进度</div>
+      ${d.courses.map(c => `<div class="hbar"><span class="lab">${esc(c.title)}</span><span class="track"><span style="width:${c.progress}%"></span></span><span class="val">${c.progress}%</span></div>`).join("")}
+    </div>`;
+  paintIcons(v);
+}
+
+/* ---------- AI 互动课堂 ---------- */
+const AGENTS = [
+  { face: "🧑‍🏫", role: "讲师智能体", name: "授课讲师", desc: "讲解知识点、梳理课程脉络与重点难点。" },
+  { face: "🤖", role: "助教智能体", name: "AI 助教", desc: "答疑解惑、推荐资料、批改与练习反馈。" },
+  { face: "🐾", role: "学伴智能体", name: "学习伙伴", desc: "陪伴讨论、启发思考、制定学习计划。" },
+];
+async function renderAIChat(v) {
+  v.innerHTML = `
+    <div class="crumb"><span class="c-item cur">AI 互动课堂</span></div>
+    <div class="h-title">AI 互动课堂 · 多智能体</div>
+    <div class="h-sub">基于 OpenMAIC 多智能体框架 · 讲师 / 助教 / 学伴协同伴学</div>
+    <div class="ai-agent">${AGENTS.map(a => `<div class="agent"><div class="face">${a.face}</div><div class="role">${a.role}</div><h4>${a.name}</h4><p>${a.desc}</p></div>`).join("")}</div>
+    <div style="display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn ai" onclick="openMAIC()">🌐 在新窗口打开 OpenMAIC 真实课堂</button>
+      <span class="muted" style="align-self:center;font-size:12px">（open.maic.chat 不支持内嵌，已用新窗口方式打开）</span>
+    </div>
+    <div class="chat-box">
+      <div class="chat-head"><span class="ic" data-icon="bot"></span><span>与 AI 助教对话（演示）</span></div>
+      <div class="chat-msgs" id="aiMsgs">
+        <div class="msg ai">你好 ${esc(cur.name)}！我是 AI 助教，有任何课程问题都可以问我 🤖</div>
+      </div>
+      <div class="chat-input"><input id="aiInput" placeholder="问问 AI 助教…" onkeydown="if(event.key==='Enter')sendAI()" /><button class="btn ai" onclick="sendAI()">发送</button></div>
+    </div>`;
+  paintIcons(v);
+}
+function openMAIC() { window.open(AI_CLASSROOM_URL, "_blank", "noopener"); }
+function sendAI() {
+  const inp = $("aiInput"); const t = inp.value.trim(); if (!t) return;
+  const box = $("aiMsgs");
+  box.insertAdjacentHTML("beforeend", `<div class="msg me">${esc(t)}</div>`);
+  inp.value = "";
+  setTimeout(() => {
+    box.insertAdjacentHTML("beforeend", `<div class="msg ai">收到～关于「${esc(t.slice(0, 12))}」，建议先回顾课程对应章节，并参考课件中的示例。需要我展开讲解某个知识点吗？</div>`);
+    box.scrollTop = box.scrollHeight;
+  }, 600);
+  box.scrollTop = box.scrollHeight;
+}
+
+/* ---------- 通知 / 头像菜单 ---------- */
+async function toggleNotify() {
+  const p = $("notifyPanel"); const show = !p.classList.contains("show");
+  p.classList.toggle("show", show);
+  if (show) {
+    const anns = await api.getAnnouncements();
+    p.innerHTML = `<div class="nt-head"><span>通知公告</span><span class="muted">${anns.length} 条</span></div>` +
+      anns.slice(0, 6).map(a => `<div class="nt-item"><div class="nt-ic"><span class="ic" data-icon="bell"></span></div><div class="nt-body"><b>${esc(a.title)}</b><p>${esc(a.course_title)} · ${esc(a.created_at)}</p></div></div>`).join("");
+    paintIcons(p);
+  }
+}
+function toggleAvatarMenu() {
+  const m = $("avatarMenu"); const show = !m.classList.contains("show");
+  m.classList.toggle("show", show);
+  if (show) { $("menuWho").innerHTML = `<b>${esc(cur.name)}</b><br>${esc(cur.username)} · ${cur.role === "student" ? "学生" : "教师"}`; }
+}
+
+/* ---------- 账号管理 ---------- */
+function openProfile() { closeMenus(); $("profileMask").style.display = "flex"; renderProfileTab("info"); bindProfileTabs(); }
+function closeProfile() { $("profileMask").style.display = "none"; }
+function bindProfileTabs() {
+  document.querySelectorAll("#profileTabs .tab").forEach(t => t.onclick = () => { renderProfileTab(t.dataset.tab); document.querySelectorAll("#profileTabs .tab").forEach(x => x.classList.toggle("cur", x === t)); });
+}
+function renderProfileTab(tab) {
+  const b = $("profileBody");
+  if (tab === "info") {
+    b.innerHTML = `<div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+      <div class="avatar lg" style="background:linear-gradient(135deg,${cur.color},#7C3AED)">${(cur.name || cur.username).slice(0,1)}</div>
+      <div><div style="font-weight:800;font-size:16px">${esc(cur.name)}</div><div class="muted">${esc(cur.username)}</div></div></div>
+      <div class="info-list">
+        <div class="info-row"><span class="info-label">身份</span><span class="info-val">${cur.role === "student" ? "学生" : "教师"}</span></div>
+        <div class="info-row"><span class="info-label">学院 / 专业</span><span class="info-val">${esc(cur.major)}</span></div>
+        <div class="info-row"><span class="info-label">学号</span><span class="info-val">${esc(cur.studentId)}</span></div>
+      </div>`;
+  } else if (tab === "nick") {
+    b.innerHTML = `<div class="field"><label>新昵称</label><input id="nickInput" value="${esc(cur.name)}" /></div>
+      <div class="actions"><button class="btn" onclick="saveNick()">保存</button></div>`;
+  } else if (tab === "avatar") {
+    const colors = ["#2563EB", "#7C3AED", "#0EA5E9", "#16A34A", "#D97706", "#DC2626"];
+    b.innerHTML = `<p class="muted" style="margin-bottom:10px">选择头像底色</p><div class="swatches">${colors.map(c => `<div class="sw ${cur.color === c ? "sel" : ""}" style="background:${c}" onclick="pickColor('${c}')"></div>`).join("")}</div>`;
+  } else if (tab === "pwd") {
+    b.innerHTML = `<div class="field"><label>当前密码</label><input id="pwdOld" type="password" /></div>
+      <div class="field"><label>新密码（至少 6 位）</label><input id="pwdNew" type="password" /></div>
+      <div class="actions"><button class="btn" onclick="savePwd()">更新密码</button></div>`;
+  }
+}
+async function saveNick() {
+  const n = $("nickInput").value.trim(); if (!n) return;
+  cur = await api.updateProfile(cur.username, { name: n });
+  $("topAvatar").textContent = n.slice(0, 1);
+  toast("昵称已更新"); renderProfileTab("info");
+}
+function pickColor(c) {
+  api.updateProfile(cur.username, { color: c }).then(u => {
+    cur = u;
+    $("topAvatar").style.background = `linear-gradient(135deg,${c},#7C3AED)`;
+    renderProfileTab("avatar"); toast("头像已更新");
+  });
+}
+async function savePwd() {
+  const old = $("pwdOld").value, nw = $("pwdNew").value;
+  if (old !== cur.password) { toast("当前密码错误"); return; }
+  if (nw.length < 6) { toast("新密码至少 6 位"); return; }
+  cur = await api.updateProfile(cur.username, { password: nw });
+  toast("密码已更新"); closeProfile();
+}
+
+/* ---------- 搜索 ---------- */
+function onSearch(q) {
+  searchQ = q.trim();
+  if (searchQ && role === "student") { navigate("course"); }
+}
+
+/* ---------- 启动 ---------- */
+window.addEventListener("click", e => {
+  if (!e.target.closest(".avatar-wrap")) $("avatarMenu")?.classList.remove("show");
+  if (!e.target.closest(".bell")) $("notifyPanel")?.classList.remove("show");
 });
-
-/* ---------------- 学习页 ---------------- */
-function openCourse(id, skipNav) {
-  const c = COURSES.find((x) => x.id === id);
-  if (!c) return;
-  const v = $("#view");
-  v.innerHTML = "";   // 先清空，避免内容堆叠
-  activeNav = "learn";
-  renderNav();
-  showCrumb([
-    { label: "课程中心", onclick: () => navigate("home") },
-    { label: c.title },
-  ]);
-  renderLearn(v, c);
-}
-
-function renderLearn(v, c) {
-  v.appendChild(el("h1", "h-title", c.title));
-  const saved = NF(localStorage.getItem("progress_" + c.id)) || c.progress;
-  v.appendChild(el("p", "h-sub", c.category + " · " + c.teacher + " · 进度 " + saved + "%"));
-
-  if (!c.sections || c.sections.length === 0) {
-    const empty = el("div", "card");
-    empty.style.textAlign = "center"; empty.style.padding = "64px 20px"; empty.style.color = "var(--text-3)";
-    empty.innerHTML = '<div style="font-size:46px;opacity:.6">📭</div>' +
-      '<div style="font-size:18px;margin-top:14px;color:var(--text-2);font-weight:800;font-family:var(--font-serif)">老师暂未上传数据</div>' +
-      '<div style="margin-top:8px">本课程的内容正在准备中，请稍后再来查看～</div>';
-    v.appendChild(empty);
-    return;
-  }
-
-  const learn = el("div", "learn");
-  const chapter = el("div", "chapter");
-  const panel = el("div", "card");
-
-  const videos = c.sections.filter((s) => s.stype === "video");
-  const docs = c.sections.filter((s) => s.stype === "doc");
-  const quizzes = c.sections.filter((s) => s.stype === "quiz");
-
-  const player = el("div");
-  player.style.cssText = "border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);background:#000";
-  const video = document.createElement("video");
-  video.controls = true;
-  video.style.cssText = "width:100%;display:block;max-height:420px;background:#000";
-  if (videos[0]) video.src = videos[0].content;
-  video.addEventListener("timeupdate", () => {
-    if (!video.duration) return;
-    const ratio = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
-    const key = "progress_" + c.id;
-    const prev = NF(localStorage.getItem(key)) || 0;
-    if (ratio > prev) { localStorage.setItem(key, ratio); refreshProgressLabel(c, ratio); }
-  });
-  player.appendChild(video);
-
-  const tabs = el("div", "learn-tabs");
-  const tabDefs = [
-    { key: "video", label: "视频", show: videos.length },
-    { key: "doc", label: "资料", show: docs.length },
-    { key: "quiz", label: "章节测验", show: quizzes.length },
-    { key: "discussion", label: "课程讨论", show: true },
-  ];
-  let curTab = "video";
-
-  function renderTab() {
-    panel.innerHTML = "";
-    if (curTab === "video") {
-      panel.appendChild(player);
-      chapter.innerHTML = '<div class="ch">章节列表</div>';
-      if (videos.length === 0) chapter.appendChild(el("div", "item", "暂无视频"));
-      videos.forEach((s, i) => {
-        const it = el("div", "item" + (i === 0 ? " active" : ""), s.title);
-        it.onclick = () => {
-          video.src = s.content; video.play().catch(() => {});
-          [...chapter.querySelectorAll(".item")].forEach((x) => x.classList.remove("active"));
-          it.classList.add("active");
-        };
-        chapter.appendChild(it);
-      });
-    } else if (curTab === "doc") {
-      panel.appendChild(el("h3", null, "课程资料"));
-      const list = el("div", "card");
-      list.style.cssText = "box-shadow:none;border:1px solid var(--border);margin-top:10px";
-      if (docs.length === 0) list.appendChild(el("div", "muted", "暂无资料"));
-      docs.forEach((s) => {
-        const a = el("a", "list-item");
-        a.href = s.content; a.target = "_blank";
-        a.style.cssText = "text-decoration:none;color:inherit;display:flex;align-items:center;gap:15px;padding:16px 18px;border-bottom:1px solid var(--border)";
-        a.innerHTML = '<div class="li-ic" data-icon="file-text"> </div><div class="li-body"><h4>' + esc(s.title) + '</h4><p>点击打开 / 下载</p></div>';
-        initIcons(a);
-        list.appendChild(a);
-      });
-      panel.appendChild(list);
-      chapter.innerHTML = '<div class="ch">资料列表</div><div class="item active">' + docs.length + " 份资料</div>";
-    } else if (curTab === "quiz") {
-      panel.appendChild(el("h3", null, "章节测验"));
-      const box = el("div", "card");
-      box.style.cssText = "box-shadow:none;border:1px solid var(--border);margin-top:10px";
-      if (quizzes.length === 0) box.appendChild(el("div", "muted", "暂无测验"));
-      quizzes.forEach((s) => {
-        const q = el("div", "list-item");
-        q.innerHTML = '<div class="li-ic" data-icon="clipboard"> </div><div class="li-body"><h4>' + esc(s.title) + "</h4><p>" + esc(s.content) + "</p></div>";
-        initIcons(q);
-        box.appendChild(q);
-      });
-      panel.appendChild(box);
-      chapter.innerHTML = '<div class="ch">测验列表</div><div class="item active">' + quizzes.length + " 份测验</div>";
-    } else {
-      renderDiscussion(panel, c);
-      chapter.innerHTML = '<div class="ch">讨论区</div><div class="item active">课程讨论</div>';
-    }
-  }
-
-  tabs.innerHTML = "";
-  tabDefs.forEach((t) => {
-    if (!t.show) return;
-    const b = el("button", curTab === t.key ? "active" : "", t.label);
-    b.onclick = () => { curTab = t.key; [...tabs.children].forEach((x) => x.classList.remove("active")); b.classList.add("active"); renderTab(); };
-    tabs.appendChild(b);
-  });
-  v.appendChild(tabs);
-
-  learn.appendChild(chapter);
-  learn.appendChild(panel);
-  learn.appendChild(el("div"));
-  v.appendChild(learn);
-  renderTab();
-}
-
-function refreshProgressLabel(c, ratio) {
-  const sub = $("#view").querySelector(".h-sub");
-  if (sub) sub.textContent = c.category + " · " + c.teacher + " · 进度 " + ratio + "%";
-}
-
-/* ---------------- 课程讨论（真实感：时间戳 / 楼层 / 教师徽章） ---------------- */
-function renderDiscussion(panel, c) {
-  const box = el("div", "chat-box");
-  const head = el("div", "chat-head");
-  head.innerHTML = icon("message", 18) + " <span>" + esc(c.title) + " · 课程讨论</span>";
-  head.style.display = "flex"; head.style.alignItems = "center"; head.style.gap = "9px";
-  const msgs = el("div", "chat-msgs");
-  const key = "discussions_" + c.id;
-  let list = JSON.parse(localStorage.getItem(key) || "null");
-  if (!list) { list = (c.discussions || []).map((m, i) => ({ ...m, ts: m.ts || "2026-09-0" + (i + 1) + " 09:1" + i, floor: i + 1 })); localStorage.setItem(key, JSON.stringify(list)); }
-
-  function paint() {
-    msgs.innerHTML = "";
-    let floor = 0;
-    list.forEach((m) => {
-      floor++;
-      const isMe = m.user === currentUser.name;
-      const isTeacher = m.role === "teacher";
-      const wrap = el("div", "chat-msg " + (isMe ? "me" : "ai"));
-      const meta = el("div", "meta");
-      meta.innerHTML = '<span style="font-weight:700">' + esc(m.user) + "</span>" +
-        (isTeacher ? '<span class="badge-teacher">教师</span>' : "") +
-        "<span>· " + (m.ts || "") + "</span><span>· #" + floor + "楼</span>";
-      wrap.appendChild(meta);
-      wrap.appendChild(el("div", null, m.content));
-      msgs.appendChild(wrap);
-    });
-    msgs.scrollTop = msgs.scrollHeight;
-  }
-  paint();
-
-  const input = el("div", "chat-input");
-  const ipt = document.createElement("input");
-  ipt.placeholder = "说点什么…";
-  const send = el("button", "btn ai", "发送");
-  send.onclick = () => {
-    const v = ipt.value.trim();
-    if (!v) return;
-    const ts = new Date();
-    const hh = String(ts.getHours()).padStart(2, "0");
-    const mm = String(ts.getMinutes()).padStart(2, "0");
-    list.push({ user: currentUser.name, content: v, ts: "今天 " + hh + ":" + mm, floor: list.length + 1 });
-    localStorage.setItem(key, JSON.stringify(list));
-    ipt.value = "";
-    paint();
-  };
-  ipt.addEventListener("keydown", (e) => { if (e.key === "Enter") send.onclick(); });
-  input.appendChild(ipt);
-  input.appendChild(send);
-
-  box.appendChild(head);
-  box.appendChild(msgs);
-  box.appendChild(input);
-  panel.appendChild(box);
-}
-
-/* ---------------- AI 课堂 ---------------- */
-function renderAIChat(v) {
-  v.appendChild(el("div", "h-title", "AI 互动课堂"));
-  v.appendChild(el("p", "h-sub", "基于 OpenMAIC 的多智能体课堂，随时与 AI 助教对话"));
-
-  const banner = el("div", "ai-banner");
-  banner.innerHTML = '<div class="emoji" data-icon="bot" style="font-size:40px;color:#6B5BD8"> </div><div><h3>多智能体 AI 课堂已就绪</h3><p>点击右侧按钮，进入真实的 AI 互动课堂（教师 / 助教 / 学伴 三种智能体）</p></div>';
-  const btn = el("button", "btn ai", "打开 AI 互动课堂");
-  btn.style.marginLeft = "auto";
-  btn.onclick = () => window.open(AI_CLASSROOM_URL, "_blank");
-  banner.appendChild(btn);
-  v.appendChild(banner);
-  initIcons(banner);
-
-  const agents = el("div", "ai-agent");
-  const defs = [
-    { cls: "teacher", face: "师", role: "教师智能体", name: "主讲教师", desc: "讲解知识点、梳理课程脉络", color: "#EAF1FB" },
-    { cls: "tutor", face: "助", role: "助教智能体", name: "答疑助教", desc: "解答疑问、布置与批改练习", color: "#F0ECFF" },
-    { cls: "mate", face: "伴", role: "学伴智能体", name: "AI 学伴", desc: "陪伴讨论、激发思考", color: "#FFEDE5" },
-  ];
-  defs.forEach((d) => {
-    const a = el("div", "agent " + d.cls);
-    const face = el("div", "face", d.face);
-    face.style.cssText = "width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;background:#fff;color:#5E82D8";
-    a.appendChild(face);
-    a.appendChild(el("span", "role", d.role));
-    a.appendChild(el("h4", null, d.name));
-    a.appendChild(el("p", null, d.desc));
-    agents.appendChild(a);
-  });
-  v.appendChild(agents);
-
-  const chat = el("div", "chat-box");
-  chat.style.height = "300px";
-  chat.innerHTML =
-    '<div class="chat-head">' + icon("sparkles", 18) + ' <span>示例对话</span></div>' +
-    '<div class="chat-msgs"><div class="chat-msg ai"><div class="meta"><span style="font-weight:700">答疑助教</span></div>同学你好，我是本课 AI 助教。有什么想了解的吗？</div>' +
-    '<div class="chat-msg me"><div class="meta"><span style="font-weight:700">' + esc(currentUser.name) + '</span></div>能帮我总结一下第 1 章的核心概念吗？</div>' +
-    '<div class="chat-msg ai"><div class="meta"><span style="font-weight:700">答疑助教</span></div>当然！第 1 章围绕「数据思维」展开，重点是从业务问题出发，明确要回答什么问题、需要哪些数据……</div></div>';
-  v.appendChild(chat);
-}
-
-/* ---------------- 学情看板 ---------------- */
-function renderDashboard(v) {
-  const c = COURSES[0];
-  const a = c.analytics || { studyHours: 0, videoProgress: 0, avgScore: 0, weekly: [] };
-  v.appendChild(el("div", "h-title", "学情看板"));
-  v.appendChild(el("p", "h-sub", currentUser.name + " · " + currentUser.major + " · 学习概览（示例数据）"));
-
-  const stats = el("div", "stat-grid");
-  [
-    { ic: "clock", num: a.studyHours + " h", lbl: "累计学习时长" },
-    { ic: "video", num: a.videoProgress + "%", lbl: "视频完成度" },
-    { ic: "clipboard", num: a.avgScore, lbl: "作业平均得分" },
-    { ic: "check-circle", num: "12 / 16", lbl: "签到记录" },
-  ].forEach((s) => {
-    const card = el("div", "stat");
-    const ic = el("div", "ic"); ic.style.background = "var(--primary-soft)"; ic.style.color = "var(--primary-deep)"; ic.innerHTML = icon(s.ic, 22);
-    card.appendChild(ic);
-    card.appendChild(el("div", "num", s.num));
-    card.appendChild(el("div", "lbl", s.lbl));
-    stats.appendChild(card);
-  });
-  v.appendChild(stats);
-
-  const chartCard = el("div", "chart-card");
-  chartCard.appendChild(el("div", "h-title2", "本周学习时长（分钟）"));
-  const bars = el("div", "bars");
-  (a.weekly || []).forEach((w) => {
-    const bar = el("div", "bar");
-    const col = el("div", "col");
-    col.style.height = w.val + "px";
-    bar.appendChild(col);
-    bar.appendChild(el("div", "lab", w.label));
-    bars.appendChild(bar);
-  });
-  chartCard.appendChild(bars);
-  v.appendChild(chartCard);
-}
-
-/* ---------------- 课堂签到 ---------------- */
-function renderSignin(v) {
-  v.appendChild(el("div", "h-title", "课堂签到"));
-  v.appendChild(el("p", "h-sub", "线下课程定位签到 / 扫码签到"));
-
-  const card = el("div", "signin-task");
-  const left = el("div");
-  left.appendChild(el("div", "st-course", "数据科学导论 · 第 5 讲"));
-  left.appendChild(el("div", "muted", "签到时间：2026-09-15 10:00 - 10:15"));
-  const btn = el("button", "btn", "立即签到");
-  let done = false;
-  btn.onclick = () => {
-    if (done) return;
-    done = true;
-    btn.textContent = "✅ 已签到";
-    btn.className = "btn ai";
-    card.style.background = "linear-gradient(120deg,var(--ai-soft),var(--accent-soft))";
-    toast("签到成功，已记录于「数据科学导论」");
-  };
-  card.appendChild(left);
-  card.appendChild(btn);
-  v.appendChild(card);
-
-  const panel = el("div", "signin-panel");
-  panel.innerHTML =
-    '<div class="sp-map"><span data-icon="map-pin" style="font-size:22px"> </span><div class="sp-pin">校本部 · 教学楼 A302</div></div>' +
-    '<div class="sp-info">定位签到需授权浏览器位置；或请教师出示课堂二维码进行扫码签到。</div>';
-  v.appendChild(panel);
-  initIcons(panel);
-}
-
-/* ---------------- 启动 ---------------- */
-(function init() {
-  // 铃铛
-  $("#bellBtn").addEventListener("click", (e) => {
-    e.stopPropagation();
-    const p = $("#notifyPanel");
-    p.classList.toggle("show");
-    renderNotif();
-  });
-  document.addEventListener("click", (e) => {
-    const p = $("#notifyPanel");
-    if (p && !$("#bellBtn").contains(e.target)) p.classList.remove("show");
-    const am = $("#avatarMenu");
-    if (am && !$("#topAvatar").parentNode.contains(e.target)) am.classList.remove("show");
-  });
-
-  document.querySelectorAll("#profileTabs .tab").forEach((t) => {
-    t.addEventListener("click", () => renderProfileTab(t.getAttribute("data-tab")));
-  });
-
-  // 上次若勾选了"记住此账号"，自动填用户名；但不自动登录（永远显示登录页）
-  const saved = localStorage.getItem("static_user");
-  if (saved) {
-    try {
-      const u = JSON.parse(saved);
-      if (u && u.username) $("#li-user").value = u.username;
-    } catch (e) {}
-  }
-  $("#login").style.display = "flex";
-  $("#app").style.display = "none";
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" || $("#login").style.display === "none") return;
-    if ($("#regForm").style.display !== "none") { doRegister(); return; }
-    if (e.target.id === "li-user" || e.target.id === "li-pass") doLogin();
-  });
-
-  initIcons();
-})();
+document.addEventListener("DOMContentLoaded", () => {
+  paintIcons();
+  const r = localStorage.getItem("gep:remember");
+  if (r) { $("li-user").value = r; $("li-remember").checked = true; }
+});
