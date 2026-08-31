@@ -33,35 +33,20 @@ function pickRole(r) {
   $("li-user").placeholder = r === "student" ? "请输入 8 位学号" : "请输入教师用户名";
   $("demoHint").textContent = r === "student" ? "演示账号：2023110001 / 123456" : "演示账号：teacher01 / 123456";
 }
-function showRegister() { $("loginForm").style.display = "none"; $("regForm").style.display = "block"; }
-function showLogin() { $("regForm").style.display = "none"; $("loginForm").style.display = "block"; }
 function togglePwd() { const i = $("li-pass"); i.type = i.type === "password" ? "text" : "password"; }
-function togglePwdReg() { const i = $("reg-pass"); i.type = i.type === "password" ? "text" : "password"; }
-function togglePwdReg2() { const i = $("reg-pass2"); i.type = i.type === "password" ? "text" : "password"; }
 
 async function doLogin() {
   const u = $("li-user").value.trim(), p = $("li-pass").value;
   if (!u || !p) { $("li-err").textContent = "请输入账号和密码"; return; }
   try {
     const user = await api.login(u, p);
-    if (user.role !== role) { $("li-err").textContent = "该账号不是" + (role === "student" ? "学生" : "教师") + "身份"; return; }
-    if ($("li-remember").checked) localStorage.setItem("gep:remember", u);
+    if (user.role !== role && user.role !== "both") { $("li-err").textContent = "该账号不是" + (role === "student" ? "学生" : "教师") + "身份"; return; }
     enterApp(user);
   } catch (e) { $("li-err").textContent = e.message; }
 }
-async function doRegister() {
-  const u = $("reg-user").value.trim(), p = $("reg-pass").value, p2 = $("reg-pass2").value;
-  if (!/^\d{8}$/.test(u)) { $("reg-msg").textContent = "学号需为 8 位数字"; return; }
-  if (p.length < 6) { $("reg-msg").textContent = "密码至少 6 位"; return; }
-  if (p !== p2) { $("reg-msg").textContent = "两次密码不一致"; return; }
-  try {
-    const user = await api.register({ username: u, password: p });
-    enterApp(user);
-    toast("注册成功，已自动登录");
-  } catch (e) { $("reg-msg").textContent = e.message; }
-}
 
 function enterApp(user) {
+  if (user.role === "both") user = { ...user, role };   // 两端通用账号：沿用登录时选择的端
   cur = user; role = user.role;
   $("login").style.display = "none";
   $("app").style.display = "flex";
@@ -527,9 +512,7 @@ function renderProfileTab(tab) {
     const colors = ["#2563EB", "#7C3AED", "#0EA5E9", "#16A34A", "#D97706", "#DC2626"];
     b.innerHTML = `<p class="muted" style="margin-bottom:10px">选择头像底色</p><div class="swatches">${colors.map(c => `<div class="sw ${cur.color === c ? "sel" : ""}" style="background:${c}" onclick="pickColor('${c}')"></div>`).join("")}</div>`;
   } else if (tab === "pwd") {
-    b.innerHTML = `<div class="field"><label>当前密码</label><input id="pwdOld" type="password" /></div>
-      <div class="field"><label>新密码（至少 6 位）</label><input id="pwdNew" type="password" /></div>
-      <div class="actions"><button class="btn" onclick="savePwd()">更新密码</button></div>`;
+    b.innerHTML = `<p class="muted">密码由管理员统一配置，如需修改请联系管理员。</p>`;
   }
 }
 async function saveNick() {
@@ -546,11 +529,7 @@ function pickColor(c) {
   });
 }
 async function savePwd() {
-  const old = $("pwdOld").value, nw = $("pwdNew").value;
-  if (old !== cur.password) { toast("当前密码错误"); return; }
-  if (nw.length < 6) { toast("新密码至少 6 位"); return; }
-  cur = await api.updateProfile(cur.username, { password: nw });
-  toast("密码已更新"); closeProfile();
+  toast("密码由管理员统一配置，暂不支持自助修改");
 }
 
 /* ---------- 搜索 ---------- */
@@ -566,6 +545,5 @@ window.addEventListener("click", e => {
 });
 document.addEventListener("DOMContentLoaded", () => {
   paintIcons();
-  const r = localStorage.getItem("gep:remember");
-  if (r) { $("li-user").value = r; $("li-remember").checked = true; }
+  pickRole("student"); paintIcons();
 });

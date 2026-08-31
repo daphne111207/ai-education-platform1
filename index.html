@@ -36,7 +36,7 @@
         <button type="button" class="rs-btn" id="rsTeacher" onclick="pickRole('teacher')">🧑‍🏫 教师登录</button>
       </div>
       <div id="loginForm">
-        <div class="field"><label>学号 / 用户名</label><input id="li-user" placeholder="请输入 8 位学号" /></div>
+        <div class="field"><label>账号</label><input id="li-user" placeholder="请输入账号" /></div>
         <div class="field">
           <label>密码</label>
           <div class="field-in">
@@ -44,33 +44,9 @@
             <span class="eye" id="eyeBtn" data-icon="eye" onclick="togglePwd()"></span>
           </div>
         </div>
-        <label class="remember"><input type="checkbox" id="li-remember" /> 记住此账号</label>
         <button class="btn" style="width:100%;margin-top:6px" onclick="doLogin()">登录进入</button>
         <p id="li-err" class="muted" style="color:var(--danger);min-height:18px;font-size:12px;margin-top:8px"></p>
-        <p class="muted" style="font-size:12px;margin-top:12px;text-align:center">
-          还没有账号？<span class="link" onclick="showRegister()">立即注册</span>
-        </p>
-        <p class="muted" style="font-size:11px;margin-top:8px;text-align:center" id="demoHint">演示账号：2023110001 / 123456</p>
-      </div>
-      <div id="regForm" style="display:none">
-        <div class="field"><label>学号</label><input id="reg-user" placeholder="请输入 8 位学号" inputmode="numeric" maxlength="8" /></div>
-        <div class="field">
-          <label>设置密码</label>
-          <div class="field-in">
-            <input id="reg-pass" type="password" placeholder="至少 6 位" />
-            <span class="eye" id="eyeBtn2" data-icon="eye" onclick="togglePwdReg()"></span>
-          </div>
-        </div>
-        <div class="field">
-          <label>确认密码</label>
-          <div class="field-in">
-            <input id="reg-pass2" type="password" placeholder="再次输入密码" />
-            <span class="eye" id="eyeBtn3" data-icon="eye" onclick="togglePwdReg2()"></span>
-          </div>
-        </div>
-        <button class="btn" style="width:100%;margin-top:6px" onclick="doRegister()">注册</button>
-        <p id="reg-msg" class="muted" style="color:var(--danger);min-height:18px;font-size:12px;margin-top:8px"></p>
-        <button class="btn ghost" style="width:100%;margin-top:6px" onclick="showLogin()">返回登录</button>
+        <p class="muted" style="font-size:11px;margin-top:8px;text-align:center" id="demoHint">账号 12345678 · 密码 123456（学生端 / 教师端通用）</p>
       </div>
     </div>
   </div>
@@ -123,7 +99,6 @@
       <div class="tab cur" data-tab="info">基本资料</div>
       <div class="tab" data-tab="nick">修改昵称</div>
       <div class="tab" data-tab="avatar">修改头像</div>
-      <div class="tab" data-tab="pwd">修改密码</div>
     </div>
     <div class="tab-body" id="profileBody"></div>
   </div>

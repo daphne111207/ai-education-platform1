@@ -18,8 +18,12 @@ const api = (() => {
   };
   const save = (k, v) => localStorage.setItem(NS + k, JSON.stringify(v));
 
-  // —— 用户表（含注册 / 改资料，持久化）——
-  const getUsers = () => load("users", USERS);
+  // —— 用户表（账号由 Excel 统一管理，持久化；版本号变化时自动重置为种子）——
+  const USERS_VERSION = 2;
+  const getUsers = () => {
+    if (load("users_v", 0) !== USERS_VERSION) { save("users", USERS); save("users_v", USERS_VERSION); }
+    return load("users", USERS);
+  };
   const setUsers = (u) => save("users", u);
 
   // —— 深拷贝种子，避免污染原始常量 ——
@@ -32,14 +36,8 @@ const api = (() => {
       if (!u) throw new Error("账号或密码错误");
       return u;
     },
-    async register({ username, password, name }) {
-      const users = getUsers();
-      if (users.find(x => x.username === username)) throw new Error("该学号已注册");
-      const u = { username, password, name: name || ("同学" + username.slice(-4)),
-                  studentId: username, major: "—", role: "student", color: "#2563EB" };
-      users.push(u); setUsers(users);
-      return u;
-    },
+    // 账号统一由 Excel 管理，不再提供前端自助注册
+    // async register(...) 已移除：接后端后如需开放注册，在此恢复即可
     // 更新当前用户资料（昵称 / 头像色 / 密码）
     async updateProfile(username, patch) {
       const users = getUsers();

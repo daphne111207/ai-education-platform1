@@ -5,11 +5,12 @@
    刷新不丢；未来接老师提供的后端时，只需改 api.js 内部实现，UI 不动。
    ========================================================= */
 
-// 可登录账号（演示用，密码均为 123456；role 决定进入学生端 / 教师端）
+// 可登录账号（账号体系由 Excel 统一管理，详见各字段说明）
+// role: "student"=仅学生端 / "teacher"=仅教师端 / "both"=两端通用
+// 字段：username 账号 · password 密码 · name 姓名 · studentId 学号/工号 · major 学院 · role 身份 · color 头像底色
+// 【接 Excel】把每一行人员转成下面一条对象即可：学生行 role:"student"，教师行 role:"teacher"。
 const USERS = [
-  { username: "2023110001", password: "123456", name: "陈嘉禾", studentId: "2023110001", major: "人工智能学院", role: "student", color: "#2563EB" },
-  { username: "2023110002", password: "123456", name: "林深夜", studentId: "2023110002", major: "计算机学院", role: "student", color: "#7C3AED" },
-  { username: "teacher01",  password: "123456", name: "王怀安", studentId: "T-001",  major: "人文学院",     role: "teacher", color: "#0EA5E9" },
+  { username: "12345678", password: "123456", name: "演示管理员", studentId: "12345678", major: "—", role: "both", color: "#2563EB" },
 ];
 
 // AI 互动课堂（多智能体）真实链接：open.maic.chat 不支持跨域 iframe，故用"新窗口打开"
